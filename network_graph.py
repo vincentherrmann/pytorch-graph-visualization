@@ -67,11 +67,10 @@ class Network:
         return connection_counts
 
     def to(self, device):
-        for (origins, targets) in self.connections:
-            origins.to(device)
-            targets.to(device)
+        for i, (origins, targets) in enumerate(self.connections):
+            self.connections[i] = (origins.to(device), targets.to(device))
         for key, value in self.layers.items():
-            value.to(device)
+            self.layers[key] = value.to(device)
 
 class NetworkForceLayout:
     def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., normalize_attraction=False, step_size=0.1, device='cpu'):
