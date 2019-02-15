@@ -5,6 +5,7 @@ import threading
 from matplotlib import pyplot as plt
 from matplotlib import collections as mc
 import matplotlib.animation
+import time
 
 
 class Network:
@@ -65,14 +66,21 @@ class Network:
                 connection_counts[targets[i, :]] += 1
         return connection_counts
 
+    def to(self, device):
+        self.connections.to(device)
+        for key, value in self.layers.items():
+            value.to(device)
+
 class NetworkForceLayout:
-    def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., normalize_attraction=False, step_size=0.1):
+    def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., normalize_attraction=False, step_size=0.1, device='cpu'):
         self.network = network
-        self.x = torch.randn([self.network.num_units, 2])
+        self.device = device
+        self.network.to(device)
+        self.x = torch.randn([self.network.num_units, 2], device=self.device)
         self.v = torch.zeros_like(self.x)
         self.a = torch.zeros_like(self.x)
-        self.movable = torch.ones(self.network.num_units)
-        self.colors = torch.ones([self.network.num_units, 4])
+        self.movable = torch.ones(self.network.num_units, device=self.device)
+        self.colors = torch.ones([self.network.num_units, 4], device=self.device)
         self.set_default_colors()
         self.connection_counts = self.network.connection_count_per_unit().float()
 
@@ -128,12 +136,13 @@ class NetworkForceLayout:
         self.a = a
 
     def simulate(self, num_steps=100, plot_interval=None):
-
+        tic = time.time()
         for step in range(num_steps):
             self.simulation_step()
             if plot_interval is not None:
                 if step % plot_interval == 0:
-                    print("plot at step", step )
+                    print("step", step, 'time per step:', (time.time() - tic) / plot_interval)
+                    tic = time.time()
                     #self.plotting_thread = threading.Thread(target=self.plot)
                     #self.plotting_thread.daemon = True
                     #self.plotting_thread.start()
