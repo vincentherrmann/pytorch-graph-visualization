@@ -67,7 +67,9 @@ class Network:
         return connection_counts
 
     def to(self, device):
-        self.connections.to(device)
+        for (origins, targets) in self.connections:
+            origins.to(device)
+            targets.to(device)
         for key, value in self.layers.items():
             value.to(device)
 
