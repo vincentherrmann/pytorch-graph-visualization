@@ -83,7 +83,7 @@ class NetworkForceLayout:
         self.movable = torch.ones(self.network.num_units, device=self.device)
         self.colors = torch.ones([self.network.num_units, 4], device=self.device)
         self.set_default_colors()
-        self.connection_counts = self.network.connection_count_per_unit().float()
+        self.connection_counts = self.network.connection_count_per_unit().float().to(self.device)
 
         self.gravity = gravity
         self.attraction = attraction
