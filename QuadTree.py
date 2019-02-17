@@ -1,9 +1,21 @@
 import torch
 
+# 0 [[0, 1, -1, 2]]
+
+# 0 [[0, -1, 1, 2],
+# 1  [-1, -1, 3, -1],
+# 2  [-1, -1, -1, 4]]
+
+# 0 [[0, 1, -1, -1],
+# 1  [-1, 2, -1, -1],
+# 2  [...],
+# 3  [...],
+# 4  [...]]
+
 
 class QuadTree:
     def __init__(self, pos, mass):
-        self.levels = 7
+        self.levels = 20
 
         min_val = torch.min(pos) - 1e-4
         max_val = torch.max(pos) + 1e-4
@@ -15,34 +27,56 @@ class QuadTree:
 
         self.quadrant_mass = []
         self.center_of_mass = []
+        self.section_indexing = []
+        sections = torch.zeros(pos.shape[0], dtype=torch.long)
+        num_sections = 1
 
         for l in range(self.levels):
             num_divisions = 2**(l+1)
 
             # calculate the section in which each point falls
-            sections = torch.floor(norm_pos * num_divisions).long()
-            sections = sections[:, 0] * num_divisions + sections[:, 1]
+            point_quadrant = torch.floor(norm_pos * num_divisions).long()
+            point_quadrant = point_quadrant[:, 0] % 2 + 2 * (point_quadrant[:, 1] % 2)
+            sections *= 4
+            sections += point_quadrant
+            #sections = sections[:, 0] * num_divisions + sections[:, 1]  # TODO change this indexing
 
             # calculate total mass and center of mass for each section
-            q_mass = torch.zeros(num_divisions**2)
+            q_mass = torch.zeros(num_sections*4)
             q_mass.scatter_add_(0, sections, mass)
             # remove unused indices
 
-            q_com = torch.zeros(num_divisions**2, 2)
+            q_com = torch.zeros(num_sections*4, 2)
             q_com[:, 0].scatter_add_(0, sections, pos[:, 0])
             q_com[:, 1].scatter_add_(0, sections, pos[:, 1])
             q_com /= q_mass.unsqueeze(1)
 
+            continued_quadrants = q_mass > 0
+            non_empty_q = continued_quadrants.nonzero().squeeze(1)
+            new_indices = torch.arange(non_empty_q.shape[0])
+            section_indexing = torch.zeros(num_sections, 4, dtype=torch.long) - 1.
+            section_indexing[non_empty_q / 4, non_empty_q % 4] = new_indices
+            num_sections = non_empty_q.shape[0]
+
+            print("section_indexing_shape:", section_indexing.shape)
+
+            q_mass = q_mass[continued_quadrants]
+            q_com = q_com[continued_quadrants, :]
             self.quadrant_mass.append(q_mass)
             self.center_of_mass.append(q_com)
+            self.section_indexing.append(section_indexing)
+
+            sections = section_indexing[sections / 4, sections % 4]
 
             # discard points that already have their own section
-            continued_indices = torch.gt(q_mass[sections], mass)
-            if torch.sum(continued_indices) < 1:
+            continued_points = torch.gt(q_mass[sections], mass)
+            if torch.sum(continued_points) < 1:
                 break
-            pos = pos[continued_indices]
-            mass = mass[continued_indices]
-            norm_pos = norm_pos[continued_indices]
+            pos = pos[continued_points]
+            mass = mass[continued_points]
+            sections = sections[continued_points]
+            norm_pos = norm_pos[continued_points]
+            print("max mass:", torch.max(q_mass))
 
         pass
 
@@ -74,6 +108,7 @@ class QuadTree:
             pairs = refine.view(-1, 2)
 
             pass
+        pass
 
 
 
