@@ -55,7 +55,7 @@ class QuadTree:
 
             continued_quadrants = q_mass > 0
             non_empty_q = continued_quadrants.nonzero().squeeze(1)
-            new_indices = torch.arange(non_empty_q.shape[0])
+            new_indices = torch.arange(non_empty_q.shape[0], device=self.device)
             section_indexing = torch.zeros(num_sections, 4, dtype=torch.long, device=self.device) - 1.
             section_indexing[non_empty_q / 4, non_empty_q % 4] = new_indices
             num_sections = non_empty_q.shape[0]
@@ -86,8 +86,8 @@ class QuadTree:
 
     def traverse(self, x, m, mac=0.7, gravity=-0.05):
         force = torch.zeros_like(x)
-        pairs = torch.cat([torch.arange(x.shape[0], dtype=torch.long).unsqueeze(1).repeat(1, 4).view(-1, 1),
-                           torch.arange(4, dtype=torch.long).unsqueeze(1).repeat(x.shape[0], 1)], dim=1)
+        pairs = torch.cat([torch.arange(x.shape[0], dtype=torch.long, device=self.device).unsqueeze(1).repeat(1, 4).view(-1, 1),
+                           torch.arange(4, dtype=torch.long, device=self.device).unsqueeze(1).repeat(x.shape[0], 1)], dim=1)
         for l in range(self.levels):
             #print("pairs:", pairs.shape[0])
             indexing = self.section_indexing[l]
