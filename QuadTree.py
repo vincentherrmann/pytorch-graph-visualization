@@ -113,7 +113,7 @@ class QuadTree:
             #refine[:, 1] = indexing[refine[:, 1] / 4, refine[:, 1] % 4]
             refine[:, 1] *= 4
             refine = refine.unsqueeze(1).repeat(1, 4, 1)
-            refine[:, :, 1] = refine[:, :, 1] + torch.LongTensor([0, 1, 2, 3]).unsqueeze(0)
+            refine[:, :, 1] = refine[:, :, 1] + torch.LongTensor([0, 1, 2, 3], device=self.device).unsqueeze(0)
             pairs = refine.view(-1, 2)
 
             pass
