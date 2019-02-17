@@ -12,6 +12,7 @@ class Network:
     def __init__(self):
         self.layers = {}
         self.connections = []
+        self.layer_connections = {}
         self._num_units = 0
 
     @property
@@ -28,12 +29,14 @@ class Network:
         indices = indices.view(shape)
         self._num_units += layer_units
         self.layers[name] = indices
+        self.layer_connections[name] = []
 
     def add_full_connections(self, input_layer, output_layer):
         in_indices = self.layers[input_layer].flatten()
         out_indices = self.layers[output_layer].flatten()
         sources = in_indices.repeat([len(out_indices), 1])
         self.connections.append((out_indices, sources))
+        self.layer_connections[input_layer].append(output_layer)
 
     def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1):
         in_indices = self.layers[input_layer]
@@ -57,6 +60,7 @@ class Network:
             connections[i] = in_indices[connection_indices[i, 0], connection_indices[i, 1]]
 
         self.connections.append((out_indices.flatten(), connections.view(-1, in_channels*kernel_size)))
+        self.layer_connections[input_layer].append(output_layer)
 
     def connection_count_per_unit(self):
         connection_counts = torch.zeros(self.num_units, dtype=torch.long)
@@ -71,6 +75,7 @@ class Network:
             self.connections[i] = (origins.to(device), targets.to(device))
         for key, value in self.layers.items():
             self.layers[key] = value.to(device)
+
 
 class NetworkForceLayout:
     def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., normalize_attraction=False, step_size=0.1, device='cpu'):
@@ -107,10 +112,32 @@ class NetworkForceLayout:
             self.movable[i] = 0.
 
     def simulation_step(self):
-        diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-
         # gravity
-        f = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+        #diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
+        #f_g = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+
+        f = torch.zeros_like(self.x)
+
+        # layer-wise gravity
+        for key, indices in self.network.layers.items():
+            fi = indices.flatten()
+            diff = self.x[fi, :].unsqueeze(1) - self.x[fi, :].unsqueeze(0)
+            f[fi, :] += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+
+        # connected layer gravity
+        for input_layer, connected_layers in self.network.layer_connections.items():
+            for output_layer in connected_layers:
+                #print(input_layer, '<->', output_layer)
+                in_indices = self.network.layers[input_layer].flatten()
+                out_indices = self.network.layers[output_layer].flatten()
+                diff = self.x[out_indices, :].unsqueeze(0) - self.x[in_indices, :].unsqueeze(1)
+                individual_forces = self.gravity * (diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5))
+                f[in_indices, :] += torch.sum(individual_forces, dim=1)
+                f[out_indices, :] -= torch.sum(individual_forces, dim=0)
+
+        #for i in range(f.shape[0]):
+        #    print("index", i, "- f:", f[i, :], "- f_g:", f_g[i, :])
+        #f_d = torch.sum((f-f_g)**2)
 
         # attraction
         a_f = torch.zeros_like(f)
@@ -186,7 +213,7 @@ class NetworkForceLayout:
 
 
 def animation_step(i, simulation, plot_connections=True):
-    for _ in range(200):
+    for _ in range(20):
         simulation.simulation_step()
     try:
         simulation.lines.remove()

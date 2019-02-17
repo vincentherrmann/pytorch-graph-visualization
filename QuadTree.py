@@ -1,0 +1,81 @@
+import torch
+
+
+class QuadTree:
+    def __init__(self, pos, mass):
+        self.levels = 7
+
+        min_val = torch.min(pos) - 1e-4
+        max_val = torch.max(pos) + 1e-4
+        self.size = max_val - min_val
+
+        norm_pos = torch.zeros_like(pos)
+        norm_pos[:, 0] = (pos[:, 0] - min_val) / self.size
+        norm_pos[:, 1] = (pos[:, 1] - min_val) / self.size
+
+        self.quadrant_mass = []
+        self.center_of_mass = []
+
+        for l in range(self.levels):
+            num_divisions = 2**(l+1)
+
+            # calculate the section in which each point falls
+            sections = torch.floor(norm_pos * num_divisions).long()
+            sections = sections[:, 0] * num_divisions + sections[:, 1]
+
+            # calculate total mass and center of mass for each section
+            q_mass = torch.zeros(num_divisions**2)
+            q_mass.scatter_add_(0, sections, mass)
+            # remove unused indices
+
+            q_com = torch.zeros(num_divisions**2, 2)
+            q_com[:, 0].scatter_add_(0, sections, pos[:, 0])
+            q_com[:, 1].scatter_add_(0, sections, pos[:, 1])
+            q_com /= q_mass.unsqueeze(1)
+
+            self.quadrant_mass.append(q_mass)
+            self.center_of_mass.append(q_com)
+
+            # discard points that already have their own section
+            continued_indices = torch.gt(q_mass[sections], mass)
+            if torch.sum(continued_indices) < 1:
+                break
+            pos = pos[continued_indices]
+            mass = mass[continued_indices]
+            norm_pos = norm_pos[continued_indices]
+
+        pass
+
+    def traverse(self, x, m, mac=0.7, gravity=-0.05):
+        force = torch.zeros_like(x)
+        pairs = torch.cat([torch.arange(x.shape[0], dtype=torch.long).unsqueeze(1).repeat(1, 4).view(-1, 1),
+                           torch.arange(4, dtype=torch.long).unsqueeze(1).repeat(x.shape[0], 1)], dim=1)
+        for l in range(self.levels):
+            #print("pairs:", pairs.shape[0])
+            this_com = self.center_of_mass[l][pairs[:, 1], :]
+            this_mass = self.quadrant_mass[l][pairs[:, 1]]
+
+            diff = x[pairs[:, 0], :] - this_com
+            dist = torch.norm(diff, 2, dim=1)
+            section_size = self.size / 2 ** (l + 1)
+            d2r = section_size / dist
+
+            accept = torch.le(d2r, mac) + torch.isnan(d2r)
+            #print("accepted:", torch.sum(accept).item(), "- ", 100*torch.sum(accept).item() / pairs.shape[0], '%')
+
+            this_f = gravity * (this_mass[accept] * m[pairs[:, 0]][accept] / dist[accept]**3).unsqueeze(1) * diff[accept]
+            force[:, 0].scatter_add_(0, pairs[:, 0][accept], this_f[:, 0])
+            force[:, 1].scatter_add_(0, pairs[:, 0][accept], this_f[:, 1])
+
+            refine = pairs[(accept == 0).nonzero(), :].squeeze(1)
+            refine[:, 1] *= 4
+            refine = refine.unsqueeze(1).repeat(1, 4, 1)
+            refine[:, :, 1] = refine[:, :, 1] + torch.LongTensor([0, 1, 2, 3]).unsqueeze(0)
+            pairs = refine.view(-1, 2)
+
+            pass
+
+
+
+
+
