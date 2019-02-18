@@ -38,26 +38,46 @@ class Network:
         self.connections.append((out_indices, sources))
         self.layer_connections[input_layer].append(output_layer)
 
-    def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1):
+    #def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
+    #    in_indices = self.layers[input_layer]
+    #    out_indices = self.layers[output_layer]
+    #    in_channels = in_indices.shape[0]
+#
+    #    connection_indices = torch.zeros([out_indices.shape[0],  # channels
+    #                                      out_indices.shape[1],  # position
+    #                                      in_channels,
+    #                                      kernel_size,
+    #                                      2], dtype=torch.long)
+    #    for c in range(in_channels):
+    #        connection_indices[:, :, c, :, 0] = c
+    #    for o in range(out_indices.shape[1]):
+    #        for k in range(kernel_size):
+    #            connection_indices[:, o, :, k, 1] = k + stride * o - padding[0]
+#
+    #    connection_indices = connection_indices.view(-1, 2)
+    #    connections = torch.zeros(connection_indices.shape[0], dtype=torch.long)
+    #    for i in range(connections.shape[0]):
+    #        connections[i] = in_indices[connection_indices[i, 0], connection_indices[i, 1]]
+#
+    #    self.connections.append((out_indices.flatten(), connections.view(-1, in_channels*kernel_size)))
+    #    self.layer_connections[input_layer].append(output_layer)
+
+    def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
         in_indices = self.layers[input_layer]
         out_indices = self.layers[output_layer]
         in_channels = in_indices.shape[0]
 
-        connection_indices = torch.zeros([out_indices.shape[0],  # channels
-                                          out_indices.shape[1],  # position
-                                          in_channels,
-                                          kernel_size,
-                                          2], dtype=torch.long)
-        for c in range(in_channels):
-            connection_indices[:, :, c, :, 0] = c
-        for o in range(out_indices.shape[1]):
-            for k in range(kernel_size):
-                connection_indices[:, o, :, k, 1] = k + stride * o
+        connection_to_channels = torch.arange(in_channels).repeat(kernel_size).view(1, 1, -1)
+        connection_to_channels = connection_to_channels.repeat(out_indices.shape[0], out_indices.shape[1], 1)
 
-        connection_indices = connection_indices.view(-1, 2)
-        connections = torch.zeros(connection_indices.shape[0], dtype=torch.long)
-        for i in range(connections.shape[0]):
-            connections[i] = in_indices[connection_indices[i, 0], connection_indices[i, 1]]
+        kernel_offset = torch.arange(kernel_size).view(-1, 1).repeat(1, in_channels).view(1, -1)
+        connection_to_time = (torch.arange(out_indices.shape[1]) * stride).unsqueeze(1) + kernel_offset - padding[0]
+        connection_to_time[connection_to_time < 0] = -1
+        connection_to_time[connection_to_time >= in_indices.shape[1]] = -1
+        connection_to_time = connection_to_time.unsqueeze(0).repeat(out_indices.shape[0], 1, 1)
+
+        connections = in_indices[connection_to_channels, connection_to_time]
+        connections[connection_to_time < 0] = -1
 
         self.connections.append((out_indices.flatten(), connections.view(-1, in_channels*kernel_size)))
         self.layer_connections[input_layer].append(output_layer)
@@ -78,7 +98,7 @@ class Network:
 
 
 class NetworkForceLayout:
-    def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., normalize_attraction=False, step_size=0.1, device='cpu'):
+    def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., noise=0., normalize_attraction=False, step_size=0.1, device='cpu'):
         self.network = network
         self.device = device
         self.network.to(device)
@@ -94,6 +114,7 @@ class NetworkForceLayout:
         self.attraction = attraction
         self.centering = centering
         self.friction = friction
+        self.noise = noise
         self.normalize_attraction = normalize_attraction
         self.step_size = step_size
 
@@ -112,28 +133,29 @@ class NetworkForceLayout:
             self.movable[i] = 0.
 
     def simulation_step(self):
+        f = torch.randn_like(self.x) * self.noise
         # gravity
-        #diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-        #f_g = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+        diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
+        f += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
 
-        f = torch.zeros_like(self.x)
+        #f = torch.zeros_like(self.x)
 
         # layer-wise gravity
-        for key, indices in self.network.layers.items():
-            fi = indices.flatten()
-            diff = self.x[fi, :].unsqueeze(1) - self.x[fi, :].unsqueeze(0)
-            f[fi, :] += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
-
-        # connected layer gravity
-        for input_layer, connected_layers in self.network.layer_connections.items():
-            for output_layer in connected_layers:
-                #print(input_layer, '<->', output_layer)
-                in_indices = self.network.layers[input_layer].flatten()
-                out_indices = self.network.layers[output_layer].flatten()
-                diff = self.x[out_indices, :].unsqueeze(0) - self.x[in_indices, :].unsqueeze(1)
-                individual_forces = self.gravity * (diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5))
-                f[in_indices, :] += torch.sum(individual_forces, dim=1)
-                f[out_indices, :] -= torch.sum(individual_forces, dim=0)
+        #for key, indices in self.network.layers.items():
+        #    fi = indices.flatten()
+        #    diff = self.x[fi, :].unsqueeze(1) - self.x[fi, :].unsqueeze(0)
+        #    f[fi, :] += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+#
+        ## connected layer gravity
+        #for input_layer, connected_layers in self.network.layer_connections.items():
+        #    for output_layer in connected_layers:
+        #        #print(input_layer, '<->', output_layer)
+        #        in_indices = self.network.layers[input_layer].flatten()
+        #        out_indices = self.network.layers[output_layer].flatten()
+        #        diff = self.x[out_indices, :].unsqueeze(0) - self.x[in_indices, :].unsqueeze(1)
+        #        individual_forces = self.gravity * (diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5))
+        #        f[in_indices, :] += torch.sum(individual_forces, dim=1)
+        #        f[out_indices, :] -= torch.sum(individual_forces, dim=0)
 
         #for i in range(f.shape[0]):
         #    print("index", i, "- f:", f[i, :], "- f_g:", f_g[i, :])
@@ -143,6 +165,7 @@ class NetworkForceLayout:
         a_f = torch.zeros_like(f)
         for origins, targets in self.network.connections:
             attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
+            attraction_force[targets < 0] = 0.
             a_f[origins, :] += torch.sum(attraction_force, dim=1)
             a_f[targets, :] -= attraction_force
         if self.normalize_attraction:
