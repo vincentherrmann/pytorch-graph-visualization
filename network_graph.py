@@ -134,9 +134,11 @@ class NetworkForceLayout:
 
     def simulation_step(self):
         f = torch.randn_like(self.x) * self.noise
+
         # gravity
-        diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-        f += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+        if self.gravity != 0.0 :
+            diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
+            f += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
 
         #f = torch.zeros_like(self.x)
 
@@ -162,15 +164,16 @@ class NetworkForceLayout:
         #f_d = torch.sum((f-f_g)**2)
 
         # attraction
-        a_f = torch.zeros_like(f)
-        for origins, targets in self.network.connections:
-            attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
-            attraction_force[targets < 0] = 0.
-            a_f[origins, :] += torch.sum(attraction_force, dim=1)
-            a_f[targets, :] -= attraction_force
-        if self.normalize_attraction:
-            a_f *= 1 / self.connection_counts.unsqueeze(1)
-        f += a_f
+        if self.attraction != 0.0:
+            a_f = torch.zeros_like(f)
+            for origins, targets in self.network.connections:
+                attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
+                attraction_force[targets < 0] = 0.
+                a_f[origins, :] += torch.sum(attraction_force, dim=1)
+                a_f[targets, :] -= attraction_force
+            if self.normalize_attraction:
+                a_f *= 1 / self.connection_counts.unsqueeze(1)
+            f += a_f
 
         # centering
         f -= self.centering * self.x
