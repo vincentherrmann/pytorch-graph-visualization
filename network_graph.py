@@ -245,12 +245,14 @@ class NetworkForceLayout:
             layer_wise_coloring = False
         for l, (name, indices) in enumerate(self.network.layers.items()):
             if layer_wise_coloring:
-                color = torch.FloatTensor(cmap(l % num_colors), device=self.device)
+                color = torch.FloatTensor(cmap(l % num_colors))
+                color = color.to(self.device)
                 i = indices.flatten()
                 self.colors[i, :] = color
             else:
                 i = indices.flatten()
                 colors = torch.from_numpy(cmap(i.float() / self.network.num_units))
+                colors = colors.to(self.device)
                 self.colors[i, :] = colors.float()
 
 
