@@ -104,7 +104,7 @@ class NetworkForceLayout:
                  gravity=-0.005,
                  attraction=0.01,
                  centering=0.1,
-                 friction=1.,
+                 drag=1.,
                  noise=0.,
                  normalize_attraction=False,
                  step_size=0.1,
@@ -125,7 +125,7 @@ class NetworkForceLayout:
         self.gravity = gravity
         self.attraction = attraction
         self.centering = centering
-        self.friction = friction
+        self.drag = drag
         self.noise = noise
         self.normalize_attraction = normalize_attraction
         self.step_size = step_size
@@ -181,7 +181,8 @@ class NetworkForceLayout:
         f -= self.centering * self.x
 
         # friction
-        f -= self.friction * self.v * torch.norm(self.v, 2, dim=1, keepdim=True)
+        v_norm = torch.norm(self.v, 2, dim=1)
+        f -= self.drag * (self.v / (v_norm.unsqueeze(1) + 1e-9)) * v_norm.unsqueeze(1) ** 2
         f = torch.clamp(f, -0.1, 0.1)
 
         a = f  # since we use mass = 1 for all nodes
