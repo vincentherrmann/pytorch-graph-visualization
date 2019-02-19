@@ -181,7 +181,7 @@ class NetworkForceLayout:
         f -= self.centering * self.x
 
         # friction
-        f -= self.friction * self.v
+        f -= self.friction * self.v * torch.norm(self.v, 2, dim=1, keepdim=True)
         f = torch.clamp(f, -0.1, 0.1)
 
         a = f  # since we use mass = 1 for all nodes
