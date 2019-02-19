@@ -106,7 +106,7 @@ class NetworkForceLayout:
                  centering=0.1,
                  drag=1.,
                  noise=0.,
-                 normalize_attraction=False,
+                 attraction_normalization=0.,
                  step_size=0.1,
                  device='cpu',
                  mac=0.7,
@@ -116,6 +116,7 @@ class NetworkForceLayout:
         self.mac = mac
         self.network.to(device)
         self.x = torch.randn([self.network.num_units, 2], device=self.device)
+        self.x *= self.network.num_units**0.5
         self.v = torch.zeros_like(self.x)
         self.a = torch.zeros_like(self.x)
         self.movable = torch.ones(self.network.num_units, device=self.device)
@@ -129,7 +130,7 @@ class NetworkForceLayout:
         self.centering = centering
         self.drag = drag
         self.noise = noise
-        self.normalize_attraction = normalize_attraction
+        self.attraction_normalization = attraction_normalization
         self.step_size = step_size
         self.max_levels = 16
 
@@ -176,8 +177,8 @@ class NetworkForceLayout:
                 attraction_force[targets < 0] = 0.
                 a_f[origins, :] += torch.sum(attraction_force, dim=1)
                 a_f[targets, :] -= attraction_force
-            if self.normalize_attraction:
-                a_f *= 1 / self.connection_counts.unsqueeze(1)
+            if self.attraction_normalization > 0.:
+                a_f *= 1 / (1 + self.attraction_normalization*(self.connection_counts.unsqueeze(1)-1))
             f += a_f
 
         # centering

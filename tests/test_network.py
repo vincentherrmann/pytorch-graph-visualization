@@ -35,7 +35,7 @@ class TestNetworkForceLayout(TestCase):
 
         layout = NetworkForceLayout(net,
                                     attraction=0.005,
-                                    normalize_attraction=False,
+                                    attraction_normalization=1.,
                                     gravity=-0.005,
                                     step_size=0.5,
                                     centering=0.0,
@@ -69,7 +69,7 @@ class TestBarnesHutSimulation(TestCase):
         net.add_layer('input_layer', [1, 111])
         layout = NetworkForceLayout(net,
                                     attraction=0.0,
-                                    normalize_attraction=True,
+                                    attraction_normalization=True,
                                     gravity=-0.005,
                                     step_size=0.1,
                                     centering=0.0,
