@@ -153,7 +153,7 @@ class NetworkForceLayout:
             #if self.barnes_hut:
             mass = torch.ones_like(self.x[:, 0])
             qt = QuadTree(self.x, mass, device=self.device)
-            bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.001)
+            bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.7)
             f += bh_force
 
             #else:
@@ -248,8 +248,8 @@ def animation_step(i, simulation, plot_connections=True):
     for _ in range(20):
         simulation.simulation_step()
     try:
-        simulation.lines.remove()
         simulation.scatter.remove()
+        simulation.lines.remove()
     except:
         pass
     if plot_connections:
