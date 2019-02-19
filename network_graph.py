@@ -149,19 +149,15 @@ class NetworkForceLayout:
 
         # gravity
         if self.gravity != 0.0:
-
-            #if self.barnes_hut:
-            mass = torch.ones_like(self.x[:, 0])
-            qt = QuadTree(self.x, mass, device=self.device)
-            bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.7)
-            f += bh_force
-
-            #else:
-            diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-            bf_force = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
-            #print("")
-            pass
-            #f += bf_force
+            if self.barnes_hut:
+                mass = torch.ones_like(self.x[:, 0])
+                qt = QuadTree(self.x, mass, device=self.device)
+                bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.7)
+                f += bh_force
+            else:
+                diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
+                bf_force = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+                f += bf_force
 
         #f = torch.zeros_like(self.x)
 
