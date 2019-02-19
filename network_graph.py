@@ -109,10 +109,10 @@ class NetworkForceLayout:
                  normalize_attraction=False,
                  step_size=0.1,
                  device='cpu',
-                 use_barnes_hut=True):
+                 mac=0.7):
         self.network = network
         self.device = device
-        self.barnes_hut = use_barnes_hut
+        self.mac = mac
         self.network.to(device)
         self.x = torch.randn([self.network.num_units, 2], device=self.device)
         self.v = torch.zeros_like(self.x)
@@ -149,10 +149,10 @@ class NetworkForceLayout:
 
         # gravity
         if self.gravity != 0.0:
-            if self.barnes_hut:
+            if self.mac > 0:
                 mass = torch.ones_like(self.x[:, 0])
                 qt = QuadTree(self.x, mass, device=self.device)
-                bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.7)
+                bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=self.mac)
                 f += bh_force
             else:
                 diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
