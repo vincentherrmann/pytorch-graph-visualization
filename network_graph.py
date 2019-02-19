@@ -237,14 +237,21 @@ class NetworkForceLayout:
 
     def set_default_colors(self, colormap='Set1'):
         cmap = matplotlib.cm.get_cmap(colormap)
-        num_colors = len(cmap.colors)
+        layer_wise_coloring = False
+        try:
+            layer_wise_coloring = True
+            num_colors = len(cmap.colors)
+        except:
+            layer_wise_coloring = False
         for l, (name, indices) in enumerate(self.network.layers.items()):
-            color = cmap(l % num_colors)
-            i = indices.flatten()
-            self.colors[i, 0] = color[0]
-            self.colors[i, 1] = color[1]
-            self.colors[i, 2] = color[2]
-            self.colors[i, 3] = color[3]
+            if layer_wise_coloring:
+                color = torch.FloatTensor(cmap(l % num_colors), device=self.device)
+                i = indices.flatten()
+                self.colors[i, :] = color
+            else:
+                i = indices.flatten()
+                colors = torch.from_numpy(cmap(i.float() / self.network.num_units))
+                self.colors[i, :] = colors.float()
 
 
 def animation_step(i, simulation, plot_connections=True):

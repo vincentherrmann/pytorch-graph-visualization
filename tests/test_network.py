@@ -39,9 +39,10 @@ class TestNetworkForceLayout(TestCase):
                                     gravity=-0.005,
                                     step_size=0.5,
                                     centering=0.0,
-                                    friction=1.,
+                                    drag=1.,
                                     noise=0.01,
                                     mac=0.7)
+        layout.set_default_colors('jet')
         #input_positions = torch.linspace(-1.5, 1.5, 12)
         #input_positions = input_positions.repeat([2, 1])
         #input_positions = torch.stack([input_positions, torch.zeros([2, 12])-2.], dim=2)
@@ -72,10 +73,12 @@ class TestBarnesHutSimulation(TestCase):
                                     gravity=-0.005,
                                     step_size=0.1,
                                     centering=0.0,
-                                    friction=1.,
+                                    drag=1.,
                                     noise=0.0,
-                                    use_barnes_hut=True)
-        layout.simulation_step()
+                                    mac=0.7)
+        for step in range(10):
+            layout.simulation_step()
+
 
 
 
