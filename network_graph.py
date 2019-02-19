@@ -251,7 +251,7 @@ class NetworkForceLayout:
                 self.colors[i, :] = color
             else:
                 i = indices.flatten()
-                colors = torch.from_numpy(cmap(i.float() / self.network.num_units))
+                colors = torch.from_numpy(cmap(i.cpu().float() / self.network.num_units))
                 colors = colors.to(self.device)
                 self.colors[i, :] = colors.float()
 
