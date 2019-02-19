@@ -84,6 +84,7 @@ class QuadTree:
                 break
             if self.levels >= self.max_levels:
                 print("too many levels!")
+                break
             pos = pos[continued_points]
             mass = mass[continued_points]
             sections = sections[continued_points]
