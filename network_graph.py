@@ -131,6 +131,7 @@ class NetworkForceLayout:
         self.noise = noise
         self.normalize_attraction = normalize_attraction
         self.step_size = step_size
+        self.max_levels = 16
 
         #plt.ion()
         self.fig, self.ax = plt.subplots(1, 1)
@@ -153,7 +154,7 @@ class NetworkForceLayout:
         if self.gravity != 0.0:
             if self.mac > 0:
                 mass = torch.ones_like(self.x[:, 0])
-                qt = QuadTree(self.x, mass, device=self.device)
+                qt = QuadTree(self.x, mass, device=self.device, max_levels=self.max_levels)
                 bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=self.mac)
                 f += bh_force
             else:
