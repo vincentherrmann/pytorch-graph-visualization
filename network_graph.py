@@ -175,9 +175,10 @@ class NetworkForceLayout:
         if self.attraction != 0.0:
             a_f = torch.zeros_like(f)
             for origins, targets in self.network.connections:
-                diff = self.x[targets, :] - self.x[origins, :].unsqueeze(1)
-                dist = torch.norm(diff, 2, dim=2, keepdim=True)
-                attraction_force = self.attraction * (diff / dist) * (dist - self.connection_target)**2
+                #diff = self.x[targets, :] - self.x[origins, :].unsqueeze(1)
+                #dist = torch.norm(diff, 2, dim=2, keepdim=True)
+                #attraction_force = self.attraction * (diff / dist) * (dist - self.connection_target)**2
+                attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
                 attraction_force[targets < 0] = 0.
                 a_f[origins, :] += torch.sum(attraction_force, dim=1)
                 a_f[targets, :] -= attraction_force
@@ -186,7 +187,8 @@ class NetworkForceLayout:
             f += a_f
 
         # centering
-        f -= self.centering * self.x
+        dist = torch.norm(self.x, 2, dim=1, keepdim=True)
+        f -= self.centering * (self.x / dist) * dist ** 2
 
         # friction
         v_norm = torch.norm(self.v, 2, dim=1)
