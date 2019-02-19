@@ -109,7 +109,8 @@ class NetworkForceLayout:
                  normalize_attraction=False,
                  step_size=0.1,
                  device='cpu',
-                 mac=0.7):
+                 mac=0.7,
+                 force_limit=0.1):
         self.network = network
         self.device = device
         self.mac = mac
@@ -121,6 +122,7 @@ class NetworkForceLayout:
         self.colors = torch.ones([self.network.num_units, 4], device=self.device)
         self.set_default_colors()
         self.connection_counts = self.network.connection_count_per_unit().float().to(self.device)
+        self.force_limit = force_limit
 
         self.gravity = gravity
         self.attraction = attraction
@@ -183,7 +185,10 @@ class NetworkForceLayout:
         # friction
         v_norm = torch.norm(self.v, 2, dim=1)
         f -= self.drag * (self.v / (v_norm.unsqueeze(1) + 1e-9)) * v_norm.unsqueeze(1) ** 2
-        f = torch.clamp(f, -0.1, 0.1)
+
+        f_norm = torch.norm(f, 2, dim=1)
+        out_of_bound = f_norm > self.force_limit
+        f[out_of_bound] = self.force_limit * f[out_of_bound] / f_norm[out_of_bound].unsqueeze(1)
 
         a = f  # since we use mass = 1 for all nodes
 
