@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib import collections as mc
 import matplotlib.animation
 import time
+from QuadTree import *
 
 
 class Network:
@@ -98,9 +99,20 @@ class Network:
 
 
 class NetworkForceLayout:
-    def __init__(self, network, gravity=-0.005, attraction=0.01, centering=0.1, friction=1., noise=0., normalize_attraction=False, step_size=0.1, device='cpu'):
+    def __init__(self,
+                 network,
+                 gravity=-0.005,
+                 attraction=0.01,
+                 centering=0.1,
+                 friction=1.,
+                 noise=0.,
+                 normalize_attraction=False,
+                 step_size=0.1,
+                 device='cpu',
+                 use_barnes_hut=True):
         self.network = network
         self.device = device
+        self.barnes_hut = use_barnes_hut
         self.network.to(device)
         self.x = torch.randn([self.network.num_units, 2], device=self.device)
         self.v = torch.zeros_like(self.x)
@@ -136,28 +148,22 @@ class NetworkForceLayout:
         f = torch.randn_like(self.x) * self.noise
 
         # gravity
-        if self.gravity != 0.0 :
+        if self.gravity != 0.0:
+
+            #if self.barnes_hut:
+            mass = torch.ones_like(self.x[:, 0])
+            qt = QuadTree(self.x, mass, device=self.device)
+            bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=0.001)
+            f += bh_force
+
+            #else:
             diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-            f += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+            bf_force = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
+            #print("")
+            pass
+            #f += bf_force
 
         #f = torch.zeros_like(self.x)
-
-        # layer-wise gravity
-        #for key, indices in self.network.layers.items():
-        #    fi = indices.flatten()
-        #    diff = self.x[fi, :].unsqueeze(1) - self.x[fi, :].unsqueeze(0)
-        #    f[fi, :] += self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
-#
-        ## connected layer gravity
-        #for input_layer, connected_layers in self.network.layer_connections.items():
-        #    for output_layer in connected_layers:
-        #        #print(input_layer, '<->', output_layer)
-        #        in_indices = self.network.layers[input_layer].flatten()
-        #        out_indices = self.network.layers[output_layer].flatten()
-        #        diff = self.x[out_indices, :].unsqueeze(0) - self.x[in_indices, :].unsqueeze(1)
-        #        individual_forces = self.gravity * (diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5))
-        #        f[in_indices, :] += torch.sum(individual_forces, dim=1)
-        #        f[out_indices, :] -= torch.sum(individual_forces, dim=0)
 
         #for i in range(f.shape[0]):
         #    print("index", i, "- f:", f[i, :], "- f_g:", f_g[i, :])
