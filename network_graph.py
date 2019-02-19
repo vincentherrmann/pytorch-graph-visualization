@@ -110,7 +110,8 @@ class NetworkForceLayout:
                  step_size=0.1,
                  device='cpu',
                  mac=0.7,
-                 force_limit=0.1):
+                 force_limit=0.1,
+                 connection_target=0.):
         self.network = network
         self.device = device
         self.mac = mac
@@ -124,6 +125,7 @@ class NetworkForceLayout:
         self.set_default_colors()
         self.connection_counts = self.network.connection_count_per_unit().float().to(self.device)
         self.force_limit = force_limit
+        self.connection_target = connection_target
 
         self.gravity = gravity
         self.attraction = attraction
@@ -173,7 +175,9 @@ class NetworkForceLayout:
         if self.attraction != 0.0:
             a_f = torch.zeros_like(f)
             for origins, targets in self.network.connections:
-                attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
+                diff = self.x[targets, :] - self.x[origins, :].unsqueeze(1)
+                dist = torch.norm(diff, 2, dim=2, keepdim=True)
+                attraction_force = self.attraction * (diff / dist) * (dist - self.connection_target)**2
                 attraction_force[targets < 0] = 0.
                 a_f[origins, :] += torch.sum(attraction_force, dim=1)
                 a_f[targets, :] -= attraction_force
