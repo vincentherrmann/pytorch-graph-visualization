@@ -231,8 +231,9 @@ class NetworkForceLayout:
 
     def set_default_colors(self, colormap='Set1'):
         cmap = matplotlib.cm.get_cmap(colormap)
+        num_colors = len(cmap.colors)
         for l, (name, indices) in enumerate(self.network.layers.items()):
-            color = cmap(l)
+            color = cmap(l % num_colors)
             i = indices.flatten()
             self.colors[i, 0] = color[0]
             self.colors[i, 1] = color[1]
