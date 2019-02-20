@@ -1,5 +1,12 @@
 import torch
 
+
+def gravity_function(m1, m2, difference, distance):
+    return -(m1 * m2 / distance**3).unsqueeze(1) * difference
+
+def energy_function(m1, m2, difference, distance):
+    return -(m1 * m2 / distance**3).unsqueeze(1).repeat(1, 3)
+
 # 0 [[0, 1, -1, 2]]
 
 # 0 [[0, -1, 1, 2],
@@ -13,8 +20,9 @@ import torch
 # 4  [...]]
 
 
-class QuadTree:
+class QuadTree(object):
     def __init__(self, pos, mass, max_levels=100, device='cpu'):
+        super().__init__()
         self.levels = 0
         self.max_levels = max_levels
         self.device = device
@@ -91,7 +99,7 @@ class QuadTree:
             norm_pos = norm_pos[continued_points]
             #print("max mass:", torch.max(q_mass))
 
-    def traverse(self, x, m, mac=0.7, gravity=-0.05):
+    def traverse(self, x, m, mac=0.7, gravity=-0.05, force_function=gravity_function):
         #print("levels:", self.levels)
         force = torch.zeros_like(x)
         pairs_o = torch.cat([torch.arange(x.shape[0], dtype=torch.long, device=self.device).unsqueeze(1).repeat(1, 4).view(-1, 1),
@@ -114,13 +122,17 @@ class QuadTree:
             #if l < self.levels - 1:
             accept = d2r < mac
             end_node = self.is_end_node[l][pairs[:, 1]]
-            accept = torch.max(accept, end_node) - (dist <= 1e-6)
+            accept = torch.max(accept, end_node) - (dist <= 1e-9)
             #else:
             #    accept = 1 - torch.isnan(d2r)
 
             #print("num accepted:", torch.sum(accept).item())
 
-            this_f = -gravity * (this_mass[accept] * m[pairs[:, 0]][accept] / (dist[accept]**3 + 1e-5)).unsqueeze(1) * diff[accept]
+            this_f = force_function(m1=this_mass[accept],
+                                    m2=m[pairs[:, 0]][accept],
+                                    difference=diff[accept],
+                                    distance=dist[accept])
+            #this_f = -gravity * (this_mass[accept] * m[pairs[:, 0]][accept] / (dist[accept]**3 + 1e-5)).unsqueeze(1) * diff[accept]
             force[:, 0].scatter_add_(0, pairs[:, 0][accept], this_f[:, 0])
             force[:, 1].scatter_add_(0, pairs[:, 0][accept], this_f[:, 1])
 
@@ -130,8 +142,11 @@ class QuadTree:
             refine[:, :, 1] = refine[:, :, 1] + torch.arange(4, dtype=torch.long, device=self.device).unsqueeze(0)
             pairs_o = refine.view(-1, 2)
 
-
         return force
+
+
+
+
 
 
 
