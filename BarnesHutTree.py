@@ -49,7 +49,7 @@ class BarnesHutTree(object):
 
             # calculate the section in which each point falls
             point_orthant = torch.floor(norm_pos * num_divisions).long()
-            point_orthant = torch.sum((point_orthant % 2) * (2**torch.arange(self.num_dim)).unsqueeze(0), dim=1)
+            point_orthant = torch.sum((point_orthant % 2) * (2**torch.arange(self.num_dim, device=self.device)).unsqueeze(0), dim=1)
 
             sections *= self.num_o
             sections += point_orthant
