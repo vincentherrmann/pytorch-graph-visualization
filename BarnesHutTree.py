@@ -20,20 +20,21 @@ def energy_function(m1, m2, difference, distance):
 # 4  [...]]
 
 
-class QuadTree(object):
+class BarnesHutTree(object):
     def __init__(self, pos, mass, max_levels=100, device='cpu'):
         super().__init__()
         self.levels = 0
         self.max_levels = max_levels
         self.device = device
 
+        self.num_dim = pos.shape[1]
+        self.num_o = 2**self.num_dim
+
         min_val = torch.min(pos) - 1e-4
         max_val = torch.max(pos) + 1e-4
         self.size = max_val - min_val
 
-        norm_pos = torch.zeros_like(pos)
-        norm_pos[:, 0] = (pos[:, 0] - min_val) / self.size
-        norm_pos[:, 1] = (pos[:, 1] - min_val) / self.size
+        norm_pos = (pos - min_val.unsqueeze(0)) / self.size.unsqueeze(0)
 
         self.quadrant_mass = []
         self.center_of_mass = []
@@ -47,18 +48,19 @@ class QuadTree(object):
             num_divisions = 2**self.levels
 
             # calculate the section in which each point falls
-            point_quadrant = torch.floor(norm_pos * num_divisions).long()
-            point_quadrant = point_quadrant[:, 0] % 2 + 2 * (point_quadrant[:, 1] % 2)
-            sections *= 4
-            sections += point_quadrant
+            point_orthant = torch.floor(norm_pos * num_divisions).long()
+            point_orthant = torch.sum((point_orthant % 2) * (2**torch.arange(self.num_dim)).unsqueeze(0), dim=1)
+
+            sections *= self.num_o
+            sections += point_orthant
 
             # calculate total mass and center of mass for each section
-            q_mass = torch.zeros(num_sections*4, device=self.device)
+            q_mass = torch.zeros(num_sections * self.num_o, device=self.device)
             q_mass.scatter_add_(0, sections, mass)
 
-            q_com = torch.zeros(num_sections*4, 2, device=self.device)
-            q_com[:, 0].scatter_add_(0, sections, pos[:, 0])
-            q_com[:, 1].scatter_add_(0, sections, pos[:, 1])
+            q_com = torch.zeros(num_sections * self.num_o, self.num_dim, device=self.device)
+            for d in range(self.num_dim):
+                q_com[:, d].scatter_add_(0, sections, pos[:, d])
             q_com /= q_mass.unsqueeze(1)
 
             continued_points = q_mass[sections] > mass
@@ -69,8 +71,8 @@ class QuadTree(object):
             continued_quadrants = 1 - empty_node
             non_empty_q = continued_quadrants.nonzero().squeeze(1)
             new_indices = torch.arange(non_empty_q.shape[0], device=self.device)
-            section_indexing = torch.zeros(num_sections, 4, dtype=torch.long, device=self.device) - 1.
-            section_indexing[non_empty_q / 4, non_empty_q % 4] = new_indices
+            section_indexing = torch.zeros(num_sections, self.num_o, dtype=torch.long, device=self.device) - 1.
+            section_indexing[non_empty_q / self.num_o, non_empty_q % self.num_o] = new_indices
             num_sections = non_empty_q.shape[0]
 
             #print("section_indexing_shape:", section_indexing.shape)
@@ -85,7 +87,7 @@ class QuadTree(object):
             self.section_indexing.append(section_indexing)
             self.is_end_node.append(q_end)
 
-            sections = section_indexing[sections / 4, sections % 4]
+            sections = section_indexing[sections / self.num_o, sections % self.num_o]
 
             # discard points that already have their own section
             if torch.sum(continued_points) < 1:
@@ -99,15 +101,15 @@ class QuadTree(object):
             norm_pos = norm_pos[continued_points]
             #print("max mass:", torch.max(q_mass))
 
-    def traverse(self, x, m, mac=0.7, gravity=-0.05, force_function=gravity_function):
+    def traverse(self, x, m, mac=0.7, force_function=gravity_function):
         #print("levels:", self.levels)
         force = torch.zeros_like(x)
-        pairs_o = torch.cat([torch.arange(x.shape[0], dtype=torch.long, device=self.device).unsqueeze(1).repeat(1, 4).view(-1, 1),
-                           torch.arange(4, dtype=torch.long, device=self.device).unsqueeze(1).repeat(x.shape[0], 1)], dim=1)
+        pairs_o = torch.cat([torch.arange(x.shape[0], dtype=torch.long, device=self.device).unsqueeze(1).repeat(1, self.num_o).view(-1, 1),
+                           torch.arange(self.num_o, dtype=torch.long, device=self.device).unsqueeze(1).repeat(x.shape[0], 1)], dim=1)
         for l in range(self.levels):
             indexing = self.section_indexing[l]
             pairs = pairs_o.clone()
-            pairs[:, 1] = indexing[pairs_o[:, 1] / 4, pairs_o[:, 1] % 4]
+            pairs[:, 1] = indexing[pairs_o[:, 1] / self.num_o, pairs_o[:, 1] % self.num_o]
             pairs = pairs[pairs[:, 1] >= 0, :]
             #print("pairs shape:", pairs.shape)
 
@@ -137,9 +139,9 @@ class QuadTree(object):
             force[:, 1].scatter_add_(0, pairs[:, 0][accept], this_f[:, 1])
 
             refine = pairs[(accept == 0).nonzero(), :].squeeze(1)
-            refine[:, 1] *= 4
-            refine = refine.unsqueeze(1).repeat(1, 4, 1)
-            refine[:, :, 1] = refine[:, :, 1] + torch.arange(4, dtype=torch.long, device=self.device).unsqueeze(0)
+            refine[:, 1] *= self.num_o
+            refine = refine.unsqueeze(1).repeat(1, self.num_o, 1)
+            refine[:, :, 1] = refine[:, :, 1] + torch.arange(self.num_o, dtype=torch.long, device=self.device).unsqueeze(0)
             pairs_o = refine.view(-1, 2)
 
         return force

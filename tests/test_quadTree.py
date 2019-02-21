@@ -1,5 +1,5 @@
 from unittest import TestCase
-from QuadTree import *
+from BarnesHutTree import *
 import time
 
 
@@ -8,7 +8,7 @@ class TestQuadTree(TestCase):
         positions = torch.rand(100, 2)
         mass = torch.ones(100)
         tic = time.time()
-        qt = QuadTree(positions, mass)
+        qt = BarnesHutTree(positions, mass)
         qt.traverse(positions, mass)
         print("levels:", qt.levels)
         print("duration:", time.time() - tic)
@@ -17,7 +17,7 @@ class TestQuadTree(TestCase):
         positions = torch.rand(1000, 2)
         mass = torch.ones(1000)
         tic = time.time()
-        qt = QuadTree(positions, mass)
+        qt = BarnesHutTree(positions, mass)
         qt.traverse(positions, mass)
         print("levels:", qt.levels)
         print("duration:", time.time() - tic)
@@ -26,7 +26,7 @@ class TestQuadTree(TestCase):
         positions = torch.rand(10000, 2)
         mass = torch.ones(10000)
         tic = time.time()
-        qt = QuadTree(positions, mass)
+        qt = BarnesHutTree(positions, mass)
         qt.traverse(positions, mass)
         print("levels:", qt.levels)
         print("duration:", time.time() - tic)
@@ -35,7 +35,7 @@ class TestQuadTree(TestCase):
         positions = torch.rand(30000, 2)
         mass = torch.ones(30000)
         tic = time.time()
-        qt = QuadTree(positions, mass)
+        qt = BarnesHutTree(positions, mass)
         qt.traverse(positions, mass)
         print("levels:", qt.levels)
         print("duration:", time.time() - tic)

@@ -35,14 +35,15 @@ class TestNetworkForceLayout(TestCase):
 
         layout = NetworkForceLayout(net,
                                     attraction=0.005,
-                                    attraction_normalization=1.,
+                                    attraction_normalization=0.8,
                                     gravity=-0.005,
                                     step_size=0.5,
-                                    centering=0.0,
-                                    drag=1.,
-                                    noise=0.01,
+                                    centering=0.001,
+                                    drag=0.6,
+                                    noise=0.001,
                                     mac=0.7,
-                                    connection_target=1.)
+                                    connection_target=1.,
+                                    num_dim=3)
         layout.set_default_colors('jet')
         #input_positions = torch.linspace(-1.5, 1.5, 12)
         #input_positions = input_positions.repeat([2, 1])

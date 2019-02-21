@@ -4,9 +4,10 @@ import matplotlib
 import threading
 from matplotlib import pyplot as plt
 from matplotlib import collections as mc
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation
 import time
-from QuadTree import *
+from BarnesHutTree import *
 
 
 class Network:
@@ -77,6 +78,7 @@ class Network:
 class NetworkForceLayout:
     def __init__(self,
                  network,
+                 num_dim=2,
                  gravity=-0.005,
                  attraction=0.01,
                  centering=0.1,
@@ -92,7 +94,8 @@ class NetworkForceLayout:
         self.device = device
         self.mac = mac
         self.network.to(device)
-        self.x = torch.randn([self.network.num_units, 2], device=self.device)
+        self.num_dim = num_dim
+        self.x = torch.randn([self.network.num_units, self.num_dim], device=self.device)
         self.x *= self.network.num_units**0.5
         self.v = torch.zeros_like(self.x)
         self.a = torch.zeros_like(self.x)
@@ -100,6 +103,7 @@ class NetworkForceLayout:
         self.colors = torch.ones([self.network.num_units, 4], device=self.device)
         self.set_default_colors()
         self.connection_counts = self.network.connection_count_per_unit().float().to(self.device)
+        self.avg_connection_count = torch.mean(self.connection_counts)
         self.force_limit = force_limit
         self.connection_target = connection_target
 
@@ -114,6 +118,9 @@ class NetworkForceLayout:
 
         #plt.ion()
         self.fig, self.ax = plt.subplots(1, 1)
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+
         #self.scatter = None
         #self.lines = None
 
@@ -127,19 +134,25 @@ class NetworkForceLayout:
             self.movable[i] = 0.
 
     def simulation_step(self):
-        f = torch.randn_like(self.x) * self.noise
+        self.x += self.movable.unsqueeze(1) * (self.v * self.step_size + 0.5 * self.a * self.step_size ** 2)
+
+        f = torch.zeros_like(self.x)
+        force_noise = torch.randn_like(self.x) * self.noise
+        f += force_noise
 
         # gravity
+        gravitational_force = torch.zeros_like(f)
         if self.gravity != 0.0:
             if self.mac > 0:
                 mass = torch.ones_like(self.x[:, 0])
-                qt = QuadTree(self.x, mass, device=self.device, max_levels=self.max_levels)
-                bh_force = qt.traverse(self.x, mass, gravity=self.gravity, mac=self.mac)
-                f += bh_force
+                qt = BarnesHutTree(self.x, mass, device=self.device, max_levels=self.max_levels)
+                bh_force = self.gravity * qt.traverse(self.x, mass, mac=self.mac)
+                gravitational_force = bh_force
             else:
                 diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
                 bf_force = self.gravity * torch.sum(diff / ((torch.norm(diff, 2, dim=2, keepdim=True)**3) + 1e-5), dim=0)
-                f += bf_force
+                gravitational_force = bf_force
+        f += gravitational_force
 
         #f = torch.zeros_like(self.x)
 
@@ -148,36 +161,45 @@ class NetworkForceLayout:
         #f_d = torch.sum((f-f_g)**2)
 
         # attraction
+        attraction_force = torch.zeros_like(f)
         if self.attraction != 0.0:
-            a_f = torch.zeros_like(f)
+            attraction_force = torch.zeros_like(f)
             for origins, targets in self.network.connections:
                 #diff = self.x[targets, :] - self.x[origins, :].unsqueeze(1)
                 #dist = torch.norm(diff, 2, dim=2, keepdim=True)
                 #attraction_force = self.attraction * (diff / dist) * (dist - self.connection_target)**2
-                attraction_force = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
-                attraction_force[targets < 0] = 0.
-                a_f[origins, :] += torch.sum(attraction_force, dim=1)
-                a_f[targets, :] -= attraction_force
+                a_f = self.attraction * (self.x[targets, :] - self.x[origins, :].unsqueeze(1))
+                a_f[targets < 0] = 0.
+                attraction_force[origins, :] += torch.sum(a_f, dim=1)
+                attraction_force[targets, :] -= a_f
             if self.attraction_normalization > 0.:
-                a_f *= 1 / (1 + self.attraction_normalization*(self.connection_counts.unsqueeze(1)-1))
-            f += a_f
+                attraction_force *= self.avg_connection_count / (1 + self.attraction_normalization*(self.connection_counts.unsqueeze(1)-1))
+        f += attraction_force
 
         # centering
         dist = torch.norm(self.x, 2, dim=1, keepdim=True)
-        f -= self.centering * (self.x / dist) * dist ** 2
+        centering_force = -self.centering * (self.x / dist) * dist ** 2
+        f += centering_force
 
-        # friction
-        v_norm = torch.norm(self.v, 2, dim=1)
-        f -= self.drag * (self.v / (v_norm.unsqueeze(1) + 1e-9)) * v_norm.unsqueeze(1) ** 2
+        # drag
+        #v_norm = torch.norm(self.v, 2, dim=1)
+        #drag_force = -self.drag * (self.v / (v_norm.unsqueeze(1) + 1e-9)) * v_norm.unsqueeze(1) ** 2
+        #f += drag_force
 
         f_norm = torch.norm(f, 2, dim=1)
+        ratio_noise = torch.mean(torch.norm(force_noise, 2, dim=1) / f_norm)
+        ratio_gravity = torch.mean(torch.norm(gravitational_force, 2, dim=1) / f_norm)
+        ratio_attraction = torch.mean(torch.norm(attraction_force, 2, dim=1) / f_norm)
+        ratio_centering = torch.mean(torch.norm(centering_force, 2, dim=1) / f_norm)
+        #ratio_drag = torch.mean(torch.norm(drag_force, 2, dim=1) / f_norm)
+
         out_of_bound = f_norm > self.force_limit
         f[out_of_bound] = self.force_limit * f[out_of_bound] / f_norm[out_of_bound].unsqueeze(1)
 
         a = f  # since we use mass = 1 for all nodes
 
         # velocity verlet integration
-        self.x += self.movable.unsqueeze(1) * (self.v * self.step_size + 0.5 * self.a * self.step_size**2)
+        self.v /= (1 + self.drag)
         self.v += 0.5 * (self.a + a) * self.step_size
         self.a = a
 
@@ -198,8 +220,8 @@ class NetworkForceLayout:
     def line_data(self):
         lines = []
         for origins, targets in self.network.connections:
-            origin_positions = self.x[origins, :].unsqueeze(1).repeat([1, targets.shape[1], 1])
-            target_positions = self.x[targets, :]
+            origin_positions = self.x[origins, :2].unsqueeze(1).repeat([1, targets.shape[1], 1])
+            target_positions = self.x[targets, :2]
             lines.append(torch.stack([origin_positions.view(-1, 2), target_positions.view(-1, 2)], dim=1))
         lines = torch.cat(lines, dim=0)
         return lines
@@ -289,7 +311,7 @@ class NetworkGradientLayout:
         if self.gravity != 0.0:
             if self.mac > 0:
                 mass = torch.ones_like(self.x[:, 0])
-                qt = QuadTree(self.x, mass, device=self.device, max_levels=self.max_levels)
+                qt = BarnesHutTree(self.x, mass, device=self.device, max_levels=self.max_levels)
                 bh_force =self.gravity * qt.traverse(self.x, mass, mac=self.mac, force_function=energy_function)
                 gravity_loss = torch.sum(bh_force[:, 0])
             else:
@@ -370,7 +392,7 @@ def animation_step(i, simulation, plot_connections=True):
         simulation.lines = mc.LineCollection(simulation.line_data(), lw=0.5, alpha=0.2)
         simulation.ax.add_collection(simulation.lines)
     pos = simulation.x.detach()
-    simulation.scatter = simulation.ax.scatter(pos[:, 0], pos[:, 1], c=simulation.colors)
+    simulation.scatter = simulation.ax.scatter(pos[:, 0], pos[:, 1], pos[:, 1], c=simulation.colors)
     simulation.ax.autoscale()
     simulation.fig.canvas.draw()
     # plt.draw()
@@ -378,7 +400,7 @@ def animation_step(i, simulation, plot_connections=True):
 
 
 def animate_simulation(simulation):
-    ani = matplotlib.animation.FuncAnimation(simulation.fig, animation_step, frames=50, fargs=(simulation, True))
+    ani = matplotlib.animation.FuncAnimation(simulation.fig, animation_step, frames=50, fargs=(simulation, False))
     return ani
 
 
