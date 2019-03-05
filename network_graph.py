@@ -96,7 +96,7 @@ class NetworkForceLayout:
         self.network.to(device)
         self.num_dim = num_dim
         self.x = torch.randn([self.network.num_units, self.num_dim], device=self.device)
-        self.x *= self.network.num_units**0.5
+        #self.x *= self.network.num_units**0.5
         self.v = torch.zeros_like(self.x)
         self.a = torch.zeros_like(self.x)
         self.movable = torch.ones(self.network.num_units, device=self.device)

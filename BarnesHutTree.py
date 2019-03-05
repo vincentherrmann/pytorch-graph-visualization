@@ -107,8 +107,17 @@ class BarnesHutTree(object):
                 num_points_in_nodes = torch.zeros_like(node_mass, dtype=torch.long)
                 num_points_in_nodes.scatter_add_(0, point_nodes, torch.ones_like(mass, dtype=torch.long))
                 max_points_in_node = torch.max(num_points_in_nodes)
-                node_indexing = self.create_non_empty_node_indexing((num_points_in_nodes > 0).nonzero().squeeze(1),
-                                                                    max_points_in_node)
+                non_empty_nodes, index_of_point = torch.unique(point_nodes, return_inverse=True)
+                node_index_of_point = non_empty_nodes[index_of_point]
+                scatter_indices = torch.arange(node_index_of_point.shape[0], device=self.device) % max_points_in_node
+                point_order = torch.argsort(node_index_of_point)
+                node_indexing = torch.zeros(num_nodes, max_points_in_node,
+                                            dtype=torch.long, device=self.device) - 1
+                node_indexing[node_index_of_point[point_order], scatter_indices] = torch.arange(node_index_of_point.shape[0], device=self.device)[point_order]
+                self.node_mass.append(mass)
+                self.center_of_mass.append(pos)
+                self.node_indexing.append(node_indexing)
+                self.is_end_node.append(torch.ones_like(mass, dtype=torch.uint8))
                 print("too many levels!")
                 break
 
@@ -119,7 +128,6 @@ class BarnesHutTree(object):
                                     dtype=torch.long, device=self.device) - 1
         node_indexing[non_empty_nodes // refinement_factor, non_empty_nodes % refinement_factor] = new_indices
         return node_indexing
-
 
     def traverse(self, x, m, mac=0.7, force_function=gravity_function):
         force = torch.zeros_like(x)
@@ -133,12 +141,22 @@ class BarnesHutTree(object):
                                           device=self.device).unsqueeze(1).repeat(x.shape[0], 1)],
                             dim=1)
 
-        for l in range(self.num_levels):
+        refine = torch.stack([torch.arange(x.shape[0], dtype=torch.long, device=self.device),
+                              torch.zeros(x.shape[0], dtype=torch.long, device=self.device)], dim=1)
+
+        for l in range(len(self.node_indexing)):
+            refinement_factor = self.node_indexing[l].shape[1]
+            refine[:, 1] *= refinement_factor
+            refine = refine.unsqueeze(1).repeat(1, refinement_factor, 1)
+            refine[:, :, 1] = refine[:, :, 1] + torch.arange(refinement_factor, dtype=torch.long,
+                                                             device=self.device).unsqueeze(0)
+            pairs_o = refine.view(-1, 2)
+
             indexing = self.node_indexing[l]
             pairs = pairs_o.clone()
 
             # adjust indexing of the nodes
-            pairs[:, 1] = indexing[pairs_o[:, 1] / self.num_o, pairs_o[:, 1] % self.num_o]
+            pairs[:, 1] = indexing[pairs_o[:, 1] / refinement_factor, pairs_o[:, 1] % refinement_factor]
             # remove nodes with index -1
             pairs = pairs[pairs[:, 1] >= 0, :]
 
@@ -147,7 +165,11 @@ class BarnesHutTree(object):
 
             diff = x[pairs[:, 0], :] - this_com
             dist = torch.norm(diff, 2, dim=1)
-            section_size = self.size / 2 ** (l + 1)
+            if l < self.num_levels:
+                section_size = self.size / 2 ** (l + 1)
+            else:
+                section_size = 0.
+                print("truncation level pairs:", pairs.shape[0])
             d2r = section_size / dist
 
             accept = d2r < mac
@@ -165,10 +187,17 @@ class BarnesHutTree(object):
             refine = pairs[(accept == 0).nonzero(), :].squeeze(1)
 
             # expand the indexing of the nodes for the next level
-            refine[:, 1] *= self.num_o
-            refine = refine.unsqueeze(1).repeat(1, self.num_o, 1)
-            refine[:, :, 1] = refine[:, :, 1] + torch.arange(self.num_o, dtype=torch.long, device=self.device).unsqueeze(0)
-            pairs_o = refine.view(-1, 2)
+            #if l < len(self.node_indexing) - 1:
+            #    refinement_factor = self.node_indexing[l+1].shape[1]
+            #    refine[:, 1] *= refinement_factor
+            #    refine = refine.unsqueeze(1).repeat(1, refinement_factor, 1)
+            #    refine[:, :, 1] = refine[:, :, 1] + torch.arange(refinement_factor, dtype=torch.long, device=self.device).unsqueeze(0)
+            #    pairs_o = refine.view(-1, 2)
+
+        #if len(self.node_indexing) > self.num_levels:
+#
+        #    pass
+
 
         return force
 
