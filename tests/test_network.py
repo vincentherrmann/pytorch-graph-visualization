@@ -27,10 +27,35 @@ class TestNetwork(TestCase):
         net.add_conv1d_connections('hidden_layer_1', 'hidden_layer_2', kernel_size=3)
         net.add_full_connections('hidden_layer_2', 'output_layer')
 
-        collapsed_graph = net.collapse_layers(factor=3, dimension=1)
+        collapsed_graph = net.collapse_layers(collapse_factor=3, dimension=1)
         num_units = collapsed_graph.num_units
         num_connections = collapsed_graph.num_connections
         pass
+
+    def test_inheritance(self):
+        net = Network()
+        net.add_layer('input_layer', [2, 12])
+        net.add_layer('hidden_layer_1', [8, 12])
+        net.add_layer('hidden_layer_2', [8, 8])
+        net.add_layer('output_layer', [1, 10])
+
+        net.add_conv1d_connections('input_layer', 'hidden_layer_1', kernel_size=3, padding=(1, 1))
+        net.add_conv1d_connections('hidden_layer_1', 'hidden_layer_2', kernel_size=3)
+        net.add_full_connections('hidden_layer_2', 'output_layer')
+
+        collapse_1 = net.collapse_layers(factor=2, dimension=0)
+        collapse_2 = collapse_1.collapse_layers(factor=3, dimension=1)
+
+        reconstruction_1 = collapse_2.give_positions_to_parent(perturbation=0.01)
+        reconstruction_net = reconstruction_1.give_positions_to_parent(perturbation=0.01)
+
+        collapse_2.set_default_colors('jet')
+        reconstruction_1.set_default_colors('jet')
+        reconstruction_net.set_default_colors('jet')
+
+        #collapse_2.plot()
+        #reconstruction_1.plot()
+        reconstruction_net.plot()
 
 
 class TestNetworkForceLayout(TestCase):
@@ -51,13 +76,13 @@ class TestNetworkForceLayout(TestCase):
         #                         'hidden_layer_2': ['output_layer']}
 
         #net = net.collapse_layers(factor=3, dimension=0)
-        #net = net.collapse_layers(factor=2, dimension=1)
+        net = net.collapse_layers(factor=2, dimension=1)
 
         layout = NetworkForceLayout(net,
-                                    spring_optimal_distance=1.,
+                                    spring_optimal_distance=0.5,
                                     attraction_normalization=0.,
-                                    repulsion=1.,
-                                    step_size=0.2,
+                                    repulsion=2.,
+                                    step_size=0.5,
                                     step_discount_factor=0.9,
                                     centering=0.,
                                     drag=0.,

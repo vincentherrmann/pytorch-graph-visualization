@@ -14,14 +14,25 @@ from BarnesHutTree import *
 
 
 class Network(object):
-    def __init__(self):
+    def __init__(self, num_dim=2):
         super().__init__()
+        self.num_dim = num_dim
         self.layers = {}
         self.connections = []
         self.layer_connections = {}
         self._num_units = 0
         self.parent_graph = None
         self.expand_lookup = None
+        self.positions = None
+        self.weights = None
+        self.colors = None
+
+        self.fig, self.ax = plt.subplots(1, 1)
+        self.fig = plt.figure()
+        # self.ax = self.fig.add_subplot(111, projection='3d')
+        self.ax = self.fig.add_subplot(111)
+        self.scatter = None
+        self.lines = None
 
     @property
     def num_units(self):
@@ -34,7 +45,7 @@ class Network(object):
             n += np.prod(targets.shape)
         return n
 
-    def add_layer(self, name, shape):
+    def add_layer(self, name, shape, positions=None, weights=None, colors=None):
         try:
             len(shape)
         except:
@@ -45,6 +56,26 @@ class Network(object):
         self._num_units += layer_units
         self.layers[name] = indices
         self.layer_connections[name] = []
+
+        if positions is None:
+            positions = torch.randn([layer_units, self.num_dim])
+        if weights is None:
+            weights = torch.ones(layer_units)
+        if colors is None:
+            colors = torch.ones([layer_units, 4])
+
+        if self.positions is None:
+            self.positions = positions
+        else:
+            self.positions = torch.cat([self.positions, positions], dim=0)
+        if self.weights is None:
+            self.weights = weights
+        else:
+            self.weights = torch.cat([self.weights, weights], dim=0)
+        if self.colors is None:
+            self.colors = colors
+        else:
+            self.colors = torch.cat([self.colors, colors], dim=0)
 
     def add_full_connections(self, input_layer, output_layer):
         in_indices = self.layers[input_layer].flatten()
@@ -80,19 +111,18 @@ class Network(object):
         collapsed_graph = Network()
         collapsed_graph.parent_graph = self
         expand_lookup = torch.zeros(self.num_units, dtype=torch.long)
-        #collapsed_graph._num_units = 0
         for name, indices in self.layers.items():
-            if dimension >= len(indices.shape):
-                continue
-            if indices.shape[dimension] < factor:
-                continue
+            if dimension >= len(indices.shape) or indices.shape[dimension] < factor:
+                collapse_factor = 1
+            else:
+                collapse_factor = factor
 
             padding = [0] * (len(indices.shape) * 2)
-            padding[len(padding) - 1 - dimension*2] = math.ceil(indices.shape[dimension] / factor) * factor - indices.shape[dimension]
+            padding[len(padding) - 1 - dimension*2] = math.ceil(indices.shape[dimension] / collapse_factor) * collapse_factor - indices.shape[dimension]
             padded_indices = F.pad(indices, padding, value=-1)
             view_shape = list(padded_indices.shape)
-            view_shape[dimension] = padded_indices.shape[dimension] // factor
-            view_shape.insert(dimension+1, factor)
+            view_shape[dimension] = padded_indices.shape[dimension] // collapse_factor
+            view_shape.insert(dimension + 1, collapse_factor)
             collapse_lookup = padded_indices.view(view_shape)
             permutation = list(range(len(view_shape)))
             permutation.pop(dimension+1)
@@ -100,13 +130,22 @@ class Network(object):
             collapse_lookup = collapse_lookup.permute(permutation)
             collapsed_layer_shape = list(collapse_lookup.shape)
             collapsed_layer_shape.pop(-1)
-            collapsed_graph.add_layer(name, shape=collapsed_layer_shape)
-            collapse_lookup = collapse_lookup.contiguous().view(-1, factor)
+            collapse_lookup = collapse_lookup.contiguous().view(-1, collapse_factor)
 
-            new_indices = collapsed_graph.layers[name].view(-1, 1).repeat(1, factor).flatten()
+            collapsed_graph.add_layer(name, shape=collapsed_layer_shape)
+
+            new_indices = collapsed_graph.layers[name].view(-1, 1).repeat(1, collapse_factor).flatten()
             allow = collapse_lookup.flatten() >= 0
             expand_lookup[collapse_lookup.flatten()[allow]] = new_indices[allow]
-        collapse_lookup.expand_lookup = expand_lookup
+        collapsed_graph.expand_lookup = expand_lookup
+
+        collapse_num = torch.zeros_like(collapsed_graph.weights)
+        collapse_num.scatter_add_(0, expand_lookup, torch.ones_like(expand_lookup, dtype=torch.float))
+        collapsed_graph.positions *= 0
+        collapsed_graph.positions.scatter_add_(0, expand_lookup.unsqueeze(1).repeat([1, self.num_dim]), self.positions)
+        collapsed_graph.positions /= collapse_num.unsqueeze(1)
+        collapsed_graph.weights *= 0
+        collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
         for origins, targets, weights in self.connections:
             new_origins = expand_lookup[origins]
@@ -117,10 +156,14 @@ class Network(object):
             #unique_origins, unique_inverse = torch.unique(new_origins, return_inverse=True)
             #new_weights = torch.zeros([unique_origins.shape[0], weights.shape[1]], device=weights.device)
             #new_weights.scatter_add_(0, , weights)
-
             collapsed_graph.connections.append((new_origins, new_targets, weights))
+        collapsed_graph.expand_lookup = expand_lookup
         return collapsed_graph
 
+    def give_positions_to_parent(self, perturbation=1e-2):
+        self.parent_graph.positions = self.positions[self.expand_lookup, :]
+        self.parent_graph.positions += (torch.rand_like(self.parent_graph.positions) * 2. - 1.) * perturbation
+        return self.parent_graph
 
     def connection_count_per_unit(self):
         connection_counts = torch.zeros(self.num_units, dtype=torch.long)
@@ -135,6 +178,49 @@ class Network(object):
             self.connections[i] = (origins.to(device), targets.to(device), weights.to(device))
         for key, value in self.layers.items():
             self.layers[key] = value.to(device)
+
+    # PLOTTING #########
+    def line_data(self):
+        lines = []
+        for origins, targets, weights in self.connections:
+            origin_positions = self.positions[origins, :2].unsqueeze(1).repeat([1, targets.shape[1], 1])
+            target_positions = self.positions[targets, :2]
+            lines.append(torch.stack([origin_positions.view(-1, 2), target_positions.view(-1, 2)], dim=1))
+        lines = torch.cat(lines, dim=0)
+        return lines
+
+    def plot(self, plot_connections=True):
+        #fig, ax = plt.subplots(1, 1)
+        try:
+            self.lines.remove()
+            self.scatter.remove()
+        except:
+            pass
+        if plot_connections:
+            self.lines = mc.LineCollection(self.line_data(), lw=0.5, alpha=0.2)
+            self.ax.add_collection(self.lines)
+        self.scatter = self.ax.scatter(self.positions[:, 0], self.positions[:, 1], linewidths=1, c=self.colors)
+        self.ax.autoscale()
+        self.fig.canvas.draw()
+        plt.show()
+
+    def set_default_colors(self, colormap='Set1'):
+        cmap = matplotlib.cm.get_cmap(colormap)
+        layer_wise_coloring = False
+        try:
+            layer_wise_coloring = True
+            num_colors = len(cmap.colors)
+        except:
+            layer_wise_coloring = False
+        for l, (name, indices) in enumerate(self.layers.items()):
+            if layer_wise_coloring:
+                color = torch.FloatTensor(cmap(l % num_colors))
+                i = indices.flatten()
+                self.colors[i, :] = color
+            else:
+                i = indices.flatten()
+                colors = torch.from_numpy(cmap(i.cpu().float() / self.num_units))
+                self.colors[i, :] = colors.float()
 
 
 class NetworkForceLayout:
