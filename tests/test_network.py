@@ -15,6 +15,23 @@ class TestNetwork(TestCase):
         connection_counts = net.connection_count_per_unit()
         pass
 
+    def test_collapsing(self):
+        net = Network()
+        net.add_layer('input_layer', [2, 12])
+        net.add_layer('hidden_layer_1', [8, 12])
+        net.add_layer('hidden_layer_2', [8, 8])
+        net.add_layer('output_layer', [1, 10])
+
+        net.add_conv1d_connections('input_layer', 'hidden_layer_1', kernel_size=3, padding=(1, 1))
+        # net.add_full_connections('hidden_layer', 'output_layer')
+        net.add_conv1d_connections('hidden_layer_1', 'hidden_layer_2', kernel_size=3)
+        net.add_full_connections('hidden_layer_2', 'output_layer')
+
+        collapsed_graph = net.collapse_layers(factor=3, dimension=1)
+        num_units = collapsed_graph.num_units
+        num_connections = collapsed_graph.num_connections
+        pass
+
 
 class TestNetworkForceLayout(TestCase):
     def test_simulation(self):
@@ -25,7 +42,7 @@ class TestNetworkForceLayout(TestCase):
         net.add_layer('output_layer', [1, 10])
 
         net.add_conv1d_connections('input_layer', 'hidden_layer_1', kernel_size=3, padding=(1, 1))
-        #net.add_full_connections('hidden_layer', 'output_layer')
+        # net.add_full_connections('hidden_layer', 'output_layer')
         net.add_conv1d_connections('hidden_layer_1', 'hidden_layer_2', kernel_size=3)
         net.add_full_connections('hidden_layer_2', 'output_layer')
 
@@ -33,16 +50,19 @@ class TestNetworkForceLayout(TestCase):
         #                         'hidden_layer_1': ['hidden_layer_2', 'output_layer'],
         #                         'hidden_layer_2': ['output_layer']}
 
+        #net = net.collapse_layers(factor=3, dimension=0)
+        #net = net.collapse_layers(factor=2, dimension=1)
+
         layout = NetworkForceLayout(net,
-                                    attraction=0.005,
-                                    attraction_normalization=0.8,
-                                    gravity=-0.005,
-                                    step_size=0.5,
-                                    centering=0.001,
-                                    drag=0.6,
-                                    noise=0.001,
+                                    spring_optimal_distance=1.,
+                                    attraction_normalization=0.,
+                                    repulsion=1.,
+                                    step_size=0.2,
+                                    step_discount_factor=0.9,
+                                    centering=0.,
+                                    drag=0.,
+                                    noise=0.,
                                     mac=0.7,
-                                    connection_target=1.,
                                     num_dim=2)
         layout.set_default_colors('jet')
         #input_positions = torch.linspace(-1.5, 1.5, 12)
@@ -117,9 +137,9 @@ class TestBarnesHutSimulation(TestCase):
         net = Network()
         net.add_layer('input_layer', [1, 111])
         layout = NetworkForceLayout(net,
-                                    attraction=0.0,
+                                    spring_optimal_distance=0.0,
                                     attraction_normalization=True,
-                                    gravity=-0.005,
+                                    repulsion=-0.005,
                                     step_size=0.1,
                                     centering=0.0,
                                     drag=1.,

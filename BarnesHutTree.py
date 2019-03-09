@@ -2,7 +2,12 @@ import torch
 
 
 def gravity_function(m1, m2, difference, distance):
-    return -(m1 * m2 / distance**3).unsqueeze(1) * difference
+    return (m1 * m2 / distance**3).unsqueeze(1) * difference
+
+
+def electrostatic_function(m1, m2, difference, distance):
+    return (m1 * m2 / distance**2).unsqueeze(1) * difference
+
 
 def energy_function(m1, m2, difference, distance):
     return -(m1 * m2 / distance**3).unsqueeze(1).repeat(1, 3)
@@ -197,7 +202,6 @@ class BarnesHutTree(object):
         #if len(self.node_indexing) > self.num_levels:
 #
         #    pass
-
 
         return force
 
