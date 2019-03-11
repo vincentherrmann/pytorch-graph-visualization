@@ -71,7 +71,7 @@ class BarnesHutTree(object):
             # calculate center of mass of each node
             node_com = torch.zeros(num_nodes * self.num_o, self.num_dim, device=self.device)
             for d in range(self.num_dim):
-                node_com[:, d].scatter_add_(0, point_nodes, pos[:, d])
+                node_com[:, d].scatter_add_(0, point_nodes, pos[:, d] * mass)
             node_com /= node_mass.unsqueeze(1)
 
             # determine if node is end node
@@ -177,9 +177,12 @@ class BarnesHutTree(object):
                 print("truncation level pairs:", pairs.shape[0])
             d2r = section_size / dist
 
-            accept = d2r < mac
+            relative_weight_difference = torch.abs((m[pairs[:, 0]] - this_mass) * this_mass)
+            different_mass = relative_weight_difference > 0.01
+
+            mac_accept = (d2r < mac)
             end_node = self.is_end_node[l][pairs[:, 1]]
-            accept = torch.max(accept, end_node) - (dist <= 1e-9)
+            accept = torch.max(mac_accept, end_node * (dist > 1e-5*section_size))
 
             this_f = force_function(m1=this_mass[accept],
                                     m2=m[pairs[:, 0]][accept],
@@ -190,6 +193,9 @@ class BarnesHutTree(object):
 
             # get pairs that were not accepted
             refine = pairs[(accept == 0).nonzero(), :].squeeze(1)
+
+            #if torch.max(force) > 1e4:
+            #    print("error?!")
 
             # expand the indexing of the nodes for the next level
             #if l < len(self.node_indexing) - 1:
