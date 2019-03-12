@@ -127,9 +127,9 @@ class Network(object):
         collapsed_graph.parent_graph = self
 
         # lookup: parent node index -> child node index
-        expand_lookup = torch.zeros(self.num_units, dtype=torch.long)
+        expand_lookup = torch.zeros(self.num_units, dtype=torch.long, device=self.positions.device)
         for name, indices in self.layers.items():
-            # if collapsing is not possible
+            # if collapsing is not possible‚
             if dimension >= len(indices.shape) or indices.shape[dimension] < factor:
                 collapse_factor = 1
             else:
@@ -161,7 +161,7 @@ class Network(object):
             allow = collapse_lookup.flatten() >= 0
             expand_lookup[collapse_lookup.flatten()[allow]] = new_indices[allow]
         collapsed_graph.expand_lookup = expand_lookup
-        collapsed_graph.to(self.weights.device)
+        collapsed_graph.to(self.positions.device)
 
         collapse_num = torch.zeros_like(collapsed_graph.weights)
         collapse_num.scatter_add_(0, expand_lookup, torch.ones_like(expand_lookup, dtype=torch.float))
