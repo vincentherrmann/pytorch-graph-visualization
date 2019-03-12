@@ -35,7 +35,10 @@ class Network(object):
 
     @property
     def num_connections(self):
-        return self.connections.shape[0]
+        try:
+            return self.connections.shape[0]
+        except:
+            return 0
 
     def add_layer(self, name, shape, positions=None, weights=None, colors=None):
         try:
@@ -158,6 +161,7 @@ class Network(object):
             allow = collapse_lookup.flatten() >= 0
             expand_lookup[collapse_lookup.flatten()[allow]] = new_indices[allow]
         collapsed_graph.expand_lookup = expand_lookup
+        collapsed_graph.to(self.weights.device)
 
         collapse_num = torch.zeros_like(collapsed_graph.weights)
         collapse_num.scatter_add_(0, expand_lookup, torch.ones_like(expand_lookup, dtype=torch.float))
@@ -168,7 +172,7 @@ class Network(object):
         collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
         new_connections = expand_lookup[self.connections]
-        unique_connections, connections_inverse = torch.unique(new_connections, sorted=True, return_inverse=True, dim=0)
+        unique_connections, connections_inverse = torch.unique(new_connections, sorted=False, return_inverse=True, dim=0)
         collapsed_graph.connections = unique_connections
         new_weights = torch.zeros(unique_connections.shape[0])
         new_weights.scatter_add_(0, connections_inverse, self.connection_weights)
@@ -195,8 +199,9 @@ class Network(object):
     def to(self, device):
         self.positions = self.positions.to(device)
         self.weights = self.weights.to(device)
-        self.connections = self.connections.to(device)
-        self.connection_weights = self.connection_weights.to(device)
+        if self.connections is not None:
+            self.connections = self.connections.to(device)
+            self.connection_weights = self.connection_weights.to(device)
         for key, value in self.layers.items():
             self.layers[key] = value.to(device)
         if self.expand_lookup is not None:
