@@ -122,20 +122,28 @@ class Network(object):
     def collapse_layers(self, factor=2, dimension=0):
         collapsed_graph = Network()
         collapsed_graph.parent_graph = self
+
+        # lookup: parent node index -> child node index
         expand_lookup = torch.zeros(self.num_units, dtype=torch.long)
         for name, indices in self.layers.items():
+            # if collapsing is not possible
             if dimension >= len(indices.shape) or indices.shape[dimension] < factor:
                 collapse_factor = 1
             else:
                 collapse_factor = factor
 
+            # create reverse lookup: child node index -> parent node indices
+            # reshape indices with additional collapse dimension, use zero padding if the shape does not fir
             padding = [0] * (len(indices.shape) * 2)
-            padding[len(padding) - 1 - dimension*2] = math.ceil(indices.shape[dimension] / collapse_factor) * collapse_factor - indices.shape[dimension]
+            target_size = math.ceil(indices.shape[dimension] / collapse_factor) * collapse_factor
+            padding[len(padding) - 1 - dimension*2] = target_size - indices.shape[dimension]
             padded_indices = F.pad(indices, padding, value=-1)
             view_shape = list(padded_indices.shape)
             view_shape[dimension] = padded_indices.shape[dimension] // collapse_factor
             view_shape.insert(dimension + 1, collapse_factor)
             collapse_lookup = padded_indices.view(view_shape)
+
+            # move the collapse dimension to the end
             permutation = list(range(len(view_shape)))
             permutation.pop(dimension+1)
             permutation.append(dimension+1)
@@ -159,7 +167,6 @@ class Network(object):
         collapsed_graph.weights *= 0
         collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
-        #new_connections = self.connections[expand_lookup.unsqueeze(1).repeat([1, 2])]
         new_connections = expand_lookup[self.connections]
         unique_connections, connections_inverse = torch.unique(new_connections, sorted=True, return_inverse=True, dim=0)
         collapsed_graph.connections = unique_connections
@@ -186,10 +193,16 @@ class Network(object):
         return connection_weight
 
     def to(self, device):
-        for i, (origins, targets, weights) in enumerate(self.connections):
-            self.connections[i] = (origins.to(device), targets.to(device), weights.to(device))
+        self.positions = self.positions.to(device)
+        self.weights = self.weights.to(device)
+        self.connections = self.connections.to(device)
+        self.connection_weights = self.connection_weights.to(device)
         for key, value in self.layers.items():
             self.layers[key] = value.to(device)
+        if self.expand_lookup is not None:
+            self.expand_lookup.to(device)
+        if self.parent_graph is not None:
+            self.parent_graph.to(device)
 
     # PLOTTING #########
     def line_data(self):
@@ -255,7 +268,6 @@ class NetworkForceLayout:
         self.x = network.positions #torch.randn([self.network.num_units, self.num_dim], device=self.device)
         self.weights = network.weights
         self.connection_weights = network.connection_weights
-        #self.x *= self.network.num_units**0.5
         self.v = torch.zeros_like(self.x)
         self.a = torch.zeros_like(self.x)
         self.movable = torch.ones(self.network.num_units, device=self.device)
@@ -300,12 +312,6 @@ class NetworkForceLayout:
                 electrical_force = torch.sum(m * (diff / ((torch.norm(diff, 2, dim=2, keepdim=True) ** 2) + 1e-5)), dim=0)
             electrical_force *= self.repulsion * self.spring_optimal_distance ** 2
         f += electrical_force
-
-        #f = torch.zeros_like(self.x)
-
-        #for i in range(f.shape[0]):
-        #    print("index", i, "- f:", f[i, :], "- f_g:", f_g[i, :])
-        #f_d = torch.sum((f-f_g)**2)
 
         # attraction
         attraction_force = torch.zeros_like(f)
@@ -380,124 +386,6 @@ class NetworkForceLayout:
             self.step_size *= self.step_discount_factor
 
 
-class NetworkGradientLayout:
-    def __init__(self,
-                 network,
-                 gravity=-0.005,
-                 attraction=0.01,
-                 centering=0.1,
-                 noise=0.,
-                 attraction_normalization=0.,
-                 lr=0.1,
-                 device='cpu',
-                 mac=0.7,
-                 connection_target=0.):
-        self.network = network
-        self.device = device
-        self.mac = mac
-        self.network.to(device)
-        self.x = torch.randn([self.network.num_units, 2], device=self.device)
-        self.x *= self.network.num_units**0.5 * 0.1
-        self.x.requires_grad = True
-        self.movable = torch.ones(self.network.num_units, device=self.device)
-        self.colors = torch.ones([self.network.num_units, 4], device=self.device)
-        self.set_default_colors()
-        self.connection_counts = self.network.connection_weight_per_unit().float().to(self.device)
-        self.avg_connection_count = torch.mean(self.connection_counts)
-        self.connection_target = connection_target
-
-        self.gravity = gravity
-        self.attraction = attraction
-        self.centering = centering
-        self.noise = noise
-        self.attraction_normalization = attraction_normalization
-        self.lr = lr
-        self.max_levels = 16
-
-        self.optimizer = torch.optim.Adam([self.x], lr=self.lr)
-
-        self.fig, self.ax = plt.subplots(1, 1)
-
-    def set_position(self, indices, pos, fix=False):
-        i = indices.flatten()
-        self.x[i, :] = pos
-        if fix:
-            self.movable[i] = 0.
-
-    def loss(self):
-        gravity_loss = torch.zeros(size=[], device=self.device)
-        if self.gravity != 0.0:
-            if self.mac > 0:
-                mass = torch.ones_like(self.x[:, 0])
-                qt = BarnesHutTree(self.x, mass, device=self.device, max_levels=self.max_levels)
-                bh_force =self.gravity * qt.traverse(self.x, mass, mac=self.mac, force_function=energy_function)
-                gravity_loss = torch.sum(bh_force[:, 0])
-            else:
-                diff = self.x.unsqueeze(1) - self.x.unsqueeze(0)
-                dist = torch.norm(diff, 2, dim=2)
-                bf_force = self.gravity * torch.sum(1 / ((dist**2) + 1e-5))
-                gravity_loss = torch.sum(torch.norm(bf_force, 2, dim=1))
-
-        attraction_loss = torch.zeros_like(gravity_loss)
-        if self.attraction != 0.0:
-            per_point_attraction = torch.zeros_like(self.x[:, 0])
-            for origins, targets, weights in self.network.connections:
-                diff = self.x[targets, :] - self.x[origins, :].unsqueeze(1)
-                dist = torch.norm(diff, 2, dim=2)
-                #dist[targets < 0] = 0.
-
-                per_point_attraction[origins] += self.attraction * torch.sum(dist, dim=1)
-                per_point_attraction[targets] += self.attraction * dist
-            if self.attraction_normalization > 0.:
-                per_point_attraction *= self.avg_connection_count / (1 + self.attraction_normalization*(self.connection_counts-1))
-            attraction_loss = torch.sum(per_point_attraction)
-
-        dist = torch.norm(self.x, 2, dim=1)
-        centering_loss = self.centering * torch.sum(dist)
-
-        loss = gravity_loss + attraction_loss + centering_loss
-        return loss
-
-    def simulation_step(self):
-        loss = self.loss()
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.x.grad += torch.randn_like(self.x) * self.noise
-        grad_norm = torch.norm(self.x.grad, 2, dim=1)
-        out_of_bound = grad_norm > 100.
-        self.x.grad[out_of_bound] = 100. * self.x.grad[out_of_bound] / grad_norm[out_of_bound].unsqueeze(1)
-        self.optimizer.step()
-
-    def set_default_colors(self, colormap='Set1'):
-        cmap = matplotlib.cm.get_cmap(colormap)
-        layer_wise_coloring = False
-        try:
-            layer_wise_coloring = True
-            num_colors = len(cmap.colors)
-        except:
-            layer_wise_coloring = False
-        for l, (name, indices) in enumerate(self.network.layers.items()):
-            if layer_wise_coloring:
-                color = torch.FloatTensor(cmap(l % num_colors))
-                color = color.to(self.device)
-                i = indices.flatten()
-                self.colors[i, :] = color
-            else:
-                i = indices.flatten()
-                colors = torch.from_numpy(cmap(i.cpu().float() / self.network.num_units))
-                colors = colors.to(self.device)
-                self.colors[i, :] = colors.float()
-
-    def line_data(self):
-        lines = []
-        for origins, targets, weights in self.network.connections:
-            origin_positions = self.x[origins, :].unsqueeze(1).repeat([1, targets.shape[1], 1])
-            target_positions = self.x[targets, :]
-            lines.append(torch.stack([origin_positions.view(-1, 2), target_positions.view(-1, 2)], dim=1))
-        lines = torch.cat(lines, dim=0)
-        return lines.detach()
-
-
 class NetworkPlot:
     def __init__(self):
         # self.fig, self.ax = plt.subplots(1, 1)
@@ -526,7 +414,7 @@ def animation_step(i, simulation, plot, plot_connections=True):
     plot.scatter = plot.ax.scatter(pos[:, 0], pos[:, 1], c=net.colors, s=8.)
     plot.ax.autoscale()
     plot.fig.canvas.draw()
-    return (plot.lines, plot.scatter)
+    return plot.lines, plot.scatter
 
 
 def animate_simulation(simulation, plot, steps=50):

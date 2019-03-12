@@ -130,6 +130,8 @@ class TestNetworkForceLayout(TestCase):
         net.add_conv1d_connections('input_layer', 'hidden_layer_1', kernel_size=3, padding=(1, 1))
         net.add_conv1d_connections('hidden_layer_1', 'hidden_layer_2', kernel_size=3)
         net.add_full_connections('hidden_layer_2', 'output_layer')
+        #net.add_conv1d_connections('input_layer', 'hidden_layer_2', kernel_size=3)
+        net.add_full_connections('hidden_layer_1', 'output_layer')
 
         net.set_default_colors('jet')
 
@@ -137,14 +139,16 @@ class TestNetworkForceLayout(TestCase):
         net.set_default_colors('jet')
         net = net.collapse_layers(factor=2, dimension=0)
         net.set_default_colors('jet')
-        net = net.collapse_layers(factor=2, dimension=0)
-        net.set_default_colors('jet')
         net = net.collapse_layers(factor=2, dimension=1)
         net.set_default_colors('jet')
         net = net.collapse_layers(factor=2, dimension=1)
         net.set_default_colors('jet')
         net = net.collapse_layers(factor=2, dimension=1)
         net.set_default_colors('jet')
+        net = net.collapse_layers(factor=2, dimension=1)
+        net.set_default_colors('jet')
+
+        net.to('cpu')
 
         global layout
         global current_net
@@ -160,7 +164,7 @@ class TestNetworkForceLayout(TestCase):
             position_change = torch.mean(torch.norm(current_net.positions - last_positions, 2, dim=1))
             last_positions = current_net.positions.clone()
             print("position change:", position_change)
-            if position_change < 0.0001:
+            if position_change < 0.001:
                 if i > 0:
                     current_net = current_net.give_positions_to_parent(perturbation=0.1)
                     last_positions = current_net.positions.clone()
@@ -172,7 +176,7 @@ class TestNetworkForceLayout(TestCase):
                                             step_discount_factor=0.9,
                                             centering=0.,
                                             drag=0.5,
-                                            noise=0.,
+                                            noise=0.5,
                                             mac=0.5,
                                             num_dim=2,
                                             force_limit=1.)
