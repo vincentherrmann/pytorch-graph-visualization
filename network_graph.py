@@ -296,7 +296,7 @@ class NetworkForceLayout:
         self.attraction_normalization = attraction_normalization
         self.step_size = step_size
         self.step_discount_factor = step_discount_factor
-        self.max_levels = 16
+        self.max_levels = 12
         self.energy = float("inf")
         self.energy_progress = 0
 

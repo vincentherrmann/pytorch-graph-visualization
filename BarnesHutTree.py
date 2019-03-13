@@ -123,7 +123,7 @@ class BarnesHutTree(object):
                 self.center_of_mass.append(pos)
                 self.node_indexing.append(node_indexing)
                 self.is_end_node.append(torch.ones_like(mass, dtype=torch.uint8))
-                print("too many levels!")
+                #print("too many levels!")
                 break
 
     def create_non_empty_node_indexing(self, non_empty_nodes, num_nodes, refinement_factor):
@@ -174,7 +174,7 @@ class BarnesHutTree(object):
                 section_size = self.size / 2 ** (l + 1)
             else:
                 section_size = 0.
-                print("truncation level pairs:", pairs.shape[0])
+                #print("truncation level pairs:", pairs.shape[0])
             d2r = section_size / dist
 
             relative_weight_difference = torch.abs((m[pairs[:, 0]] - this_mass) * this_mass)

@@ -19,8 +19,8 @@ class TestNetwork(TestCase):
     def test_collapsing(self):
         net = Network()
         net.add_layer('input_layer', [2, 12])
-        net.add_layer('hidden_layer_1', [8, 12])
-        net.add_layer('hidden_layer_2', [8, 8])
+        net.add_layer('hidden_layer_1', [512, 12])
+        net.add_layer('hidden_layer_2', [512, 8])
         net.add_layer('output_layer', [1, 10])
 
         net.add_conv1d_connections('input_layer', 'hidden_layer_1', kernel_size=3, padding=(1, 1))
@@ -32,6 +32,33 @@ class TestNetwork(TestCase):
         num_units = collapsed_graph.num_units
         num_connections = collapsed_graph.num_connections
         pass
+
+    def test_collapsing_2(self):
+        net = Network()
+        net.add_layer('input_layer', [2, 256])
+        net.add_layer('hidden_1', [8, 126])
+        net.add_layer('hidden_2', [8, 126])
+        # net.add_layer('input_layer', [2, 256])
+        # net.add_layer('hidden_1', [32, 126])
+        # net.add_layer('hidden_2', [32, 126])
+        # net.add_layer('hidden_3', [64, 61])
+        # net.add_layer('hidden_4', [128, 30])
+        # net.add_layer('hidden_5', [256, 26])
+        # net.add_layer('output_layer', [512, 1])
+
+        net.add_conv1d_connections('input_layer', 'hidden_1', kernel_size=5, stride=2)
+        net.add_conv1d_connections('hidden_1', 'hidden_2', kernel_size=64, padding=(0, 63))
+        # net.add_conv1d_connections('hidden_2', 'hidden_3', kernel_size=5, stride=2)
+        # net.add_conv1d_connections('hidden_3', 'hidden_4', kernel_size=32)
+        # net.add_conv1d_connections('hidden_4', 'hidden_5', kernel_size=5)
+        # net.add_conv1d_connections('hidden_5', 'output_layer', kernel_size=26)
+
+        for i in range(4):
+            print("start collapsing")
+            net = net.collapse_layers(factor=2, dimension=0)
+            print("collapsing finished")
+            net.set_default_colors('jet')
+            print("unit count:", net.num_units)
 
     def test_inheritance(self):
         net = Network()
