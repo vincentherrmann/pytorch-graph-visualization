@@ -173,7 +173,9 @@ class Network(object):
         collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
         new_connections = expand_lookup[self.connections]
+        print("unique operation started")
         unique_connections, connections_inverse = torch.unique(new_connections, sorted=False, return_inverse=True, dim=0)
+        print("unisque operation finished")
         collapsed_graph.connections = unique_connections
         new_weights = torch.zeros(unique_connections.shape[0], device=self.positions.device)
         new_weights.scatter_add_(0, connections_inverse, self.connection_weights)
