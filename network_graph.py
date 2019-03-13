@@ -194,12 +194,12 @@ class Network(object):
         return self.parent_graph
 
     def input_connection_weight_per_unit(self):
-        connection_weight = torch.zeros(self.num_units, dev=self.positions.device)
+        connection_weight = torch.zeros(self.num_units, device=self.positions.device)
         connection_weight.scatter_add_(0, self.connections[:, 1], self.connection_weights)
         return connection_weight
 
     def output_connection_weight_per_unit(self):
-        connection_weight = torch.zeros(self.num_units, dev=self.positions.device)
+        connection_weight = torch.zeros(self.num_units, device=self.positions.device)
         connection_weight.scatter_add_(0, self.connections[:, 0], self.connection_weights)
         return connection_weight
 
