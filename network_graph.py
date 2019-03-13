@@ -336,7 +336,7 @@ class NetworkForceLayout:
             attraction_force.scatter_add_(0, self.network.connections[:, 0:1].repeat([1, self.num_dim]), a_f)
             attraction_force.scatter_add_(0, self.network.connections[:, 1:2].repeat([1, self.num_dim]), -a_f)
             if self.attraction_normalization > 0.:
-                attraction_force *= self.avg_connection_count / (1 + self.attraction_normalization * (self.per_unit_connection_weight.unsqueeze(1) - 1))
+                attraction_force *= self.avg_connection_count / (1 + self.attraction_normalization * self.per_unit_connection_weight.unsqueeze(1))
         f += attraction_force
 
         # centering
