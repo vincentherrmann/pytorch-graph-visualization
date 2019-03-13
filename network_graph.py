@@ -173,10 +173,14 @@ class Network(object):
         collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
         new_connections = expand_lookup[self.connections]
-        print("unique operation started")
-        unique_connections, connections_inverse = torch.unique(new_connections, sorted=False, return_inverse=True, dim=0)
-        print("unisque operation finished")
-        collapsed_graph.connections = unique_connections
+        #print("unique operation started")
+        nu = collapsed_graph.num_units
+        # create a hash for the new connection (because the unique operation is very slow for two dimensions)
+        connection_hash = new_connections[:, 0] * nu + new_connections[:, 1]
+        unique_connections, connections_inverse = torch.unique(connection_hash, sorted=False, return_inverse=True)
+        new_connections = torch.stack([unique_connections / nu, unique_connections % nu], dim=1)
+        #print("unisque operation finished")
+        collapsed_graph.connections = new_connections
         new_weights = torch.zeros(unique_connections.shape[0], device=self.positions.device)
         new_weights.scatter_add_(0, connections_inverse, self.connection_weights)
         collapsed_graph.connection_weights = new_weights
