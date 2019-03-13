@@ -369,12 +369,15 @@ class NetworkForceLayout:
         self.v /= (1 + self.drag)
         self.v += 0.5 * (self.a + a) * self.step_size
         self.a = a
-        self.x += self.movable.unsqueeze(1) * (self.v * self.step_size + 0.5 * self.a * self.step_size ** 2)
+        x_update = self.movable.unsqueeze(1) * (self.v * self.step_size + 0.5 * self.a * self.step_size ** 2)
 
-        is_nan = torch.isnan(self.x)
+        is_nan = torch.isnan(x_update)
         if torch.sum(is_nan) > 0:
-            print("nan positions detected")
-            self.x[is_nan] = torch.rand(torch.sum(is_nan), device=self.x.device)
+            print("x updates with nan:", is_nan.nonzero())
+            x_update[is_nan] = torch.zeros(torch.sum(is_nan), device=self.x.device)
+
+        self.x += x_update
+
         self.update_step_size(energy)
         self.energy = energy
 
