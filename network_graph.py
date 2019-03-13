@@ -158,6 +158,7 @@ class Network(object):
             collapsed_graph.add_layer(name, shape=collapsed_layer_shape)
 
             new_indices = collapsed_graph.layers[name].view(-1, 1).repeat(1, collapse_factor).flatten()
+            new_indices = new_indices.to(self.positions.device)
             allow = collapse_lookup.flatten() >= 0
             expand_lookup[collapse_lookup.flatten()[allow]] = new_indices[allow]
         collapsed_graph.expand_lookup = expand_lookup
