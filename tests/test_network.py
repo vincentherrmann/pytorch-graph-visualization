@@ -216,6 +216,62 @@ class TestNetworkForceLayout(TestCase):
                                                  repeat=False)
         plt.show()
 
+    def test_full_size_network(self):
+
+        net = Network()
+        net.add_layer('input_layer', [2, 255])
+        net.add_layer('hidden_1', [32, 126])
+        net.add_layer('hidden_2', [32, 126])
+        net.add_layer('hidden_3', [64, 61])
+        net.add_layer('hidden_4', [128, 30])
+        net.add_layer('hidden_5', [256, 26])
+        net.add_layer('output_layer', [512, 1])
+
+        net.add_conv1d_connections('input_layer', 'hidden_1', kernel_size=5, stride=2)
+        net.add_conv1d_connections('hidden_1', 'hidden_2', kernel_size=64, padding=(0, 63))
+        net.add_conv1d_connections('hidden_2', 'hidden_3', kernel_size=5, stride=2)
+        net.add_conv1d_connections('hidden_3', 'hidden_4', kernel_size=32)
+        net.add_conv1d_connections('hidden_4', 'hidden_5', kernel_size=5)
+        net.add_conv1d_connections('hidden_5', 'output_layer', kernel_size=26)
+
+        for i in range(7):
+            net = net.collapse_layers(factor=2, dimension=0)
+            net.set_default_colors('jet')
+            print("unit count:", net.num_units)
+
+        for i in range(7):
+            net = net.collapse_layers(factor=2, dimension=1)
+            net.set_default_colors('jet')
+            print("unit count:", net.num_units)
+
+        current_net = net
+        last_positions = net.positions.clone()
+        level_step_counter = 1000
+        next_level = 0
+
+        for i in range(14):
+            if True:
+                level_step_counter = 0
+                print("move to level:", next_level)
+                next_level += 1
+                if i > 0:
+                    current_net = current_net.give_positions_to_parent(perturbation=0.1)
+                layout = NetworkForceLayout(current_net,
+                                            spring_optimal_distance=1.,
+                                            attraction_normalization=1.,
+                                            repulsion=1.,
+                                            step_size=0.1,
+                                            step_discount_factor=0.9,
+                                            centering=0.,
+                                            drag=0.5,
+                                            noise=0.5,
+                                            mac=0.5,
+                                            num_dim=2,
+                                            force_limit=1.)
+            layout.simulation_step()
+            level_step_counter += 1
+
+
 
 class TestNetworkGradientLayout(TestCase):
     def test_simulation(self):
