@@ -175,6 +175,8 @@ class Network(object):
         new_connections = expand_lookup[self.connections]
         #print("unique operation started")
         nu = collapsed_graph.num_units
+        print("num units:", nu)
+        print("num units in connections", torch.max(new_connections))
         # create a hash for the new connection (because the unique operation is very slow for two dimensions)
         connection_hash = new_connections[:, 0] * nu + new_connections[:, 1]
         unique_connections, connections_inverse = torch.unique(connection_hash, sorted=False, return_inverse=True)
@@ -425,12 +427,12 @@ def animation_step(i, simulation, plot, plot_connections=True):
     except:
         pass
     if plot_connections:
-        plot.lines = mc.LineCollection(net.line_data(), lw=0.5, alpha=0.2)
+        plot.lines = mc.LineCollection(net.line_data().cpu(), lw=0.5, alpha=0.2)
         plot.ax.add_collection(plot.lines)
     print("energy:", simulation.energy)
     print("step size:", simulation.step_size)
-    pos = simulation.x.detach()
-    plot.scatter = plot.ax.scatter(pos[:, 0], pos[:, 1], c=net.colors, s=8.)
+    pos = simulation.x.detach().cpu()
+    plot.scatter = plot.ax.scatter(pos[:, 0], pos[:, 1], c=net.colors.cpu(), s=8.)
     plot.ax.autoscale()
     plot.fig.canvas.draw()
     return plot.lines, plot.scatter
