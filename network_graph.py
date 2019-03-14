@@ -301,6 +301,7 @@ class NetworkForceLayout:
         self.max_levels = 12
         self.energy = float("inf")
         self.energy_progress = 0
+        self.energy_progress = 0
 
     def set_position(self, indices, pos, fix=False):
         i = indices.flatten()
@@ -429,8 +430,8 @@ def animation_step(i, simulation, plot, plot_connections=True):
     if plot_connections:
         plot.lines = mc.LineCollection(net.line_data().cpu(), lw=0.5, alpha=0.2)
         plot.ax.add_collection(plot.lines)
-    print("energy:", simulation.energy)
-    print("step size:", simulation.step_size)
+    #print("energy:", simulation.energy)
+    #print("step size:", simulation.step_size)
     pos = simulation.x.detach().cpu()
     plot.scatter = plot.ax.scatter(pos[:, 0], pos[:, 1], c=net.colors.cpu(), s=8.)
     plot.ax.autoscale()
