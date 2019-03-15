@@ -191,9 +191,9 @@ class Network(object):
         return collapsed_graph
 
     def give_positions_to_parent(self, perturbation=1e-2):
-        if self.parent_graph is None:
-            print("No parent graph available")
-            return self
+        #if self.parent_graph is None:
+        #    print("No parent graph available")
+        #    return self
         self.parent_graph.positions = self.positions[self.expand_lookup, :]
         self.parent_graph.positions += (torch.rand_like(self.parent_graph.positions) * 2. - 1.) * perturbation
         return self.parent_graph
