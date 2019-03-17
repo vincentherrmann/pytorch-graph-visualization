@@ -346,9 +346,10 @@ class NetworkForceLayout:
         f += attraction_force
 
         # centering
-        #dist = torch.norm(self.x, 2, dim=1, keepdim=True)
-        #centering_force = -self.centering * (self.x / dist) * dist ** 2
-        #f += centering_force
+        if self.centering > 0.:
+            dist = torch.norm(self.x, 2, dim=1, keepdim=True)
+            centering_force = -self.centering * (self.x / dist) * dist**2 * self.weights.unsqueeze(1)
+            f += centering_force
 
         # drag
         #v_norm = torch.norm(self.v, 2, dim=1)
