@@ -201,13 +201,15 @@ class TestNetworkForceLayout(TestCase):
                                             repulsion=1.,
                                             step_size=0.1,
                                             step_discount_factor=0.9,
-                                            centering=0.,
+                                            centering=0.1,
                                             drag=0.5,
                                             noise=0.5,
                                             mac=0.5,
                                             num_dim=2,
                                             force_limit=1.)
             animation_step(i, layout, plot, True)
+
+        multilevel_animation_step(0)
 
         ani = matplotlib.animation.FuncAnimation(plot.fig,
                                                  multilevel_animation_step,
@@ -270,6 +272,97 @@ class TestNetworkForceLayout(TestCase):
                                             force_limit=1.)
             layout.simulation_step()
             level_step_counter += 1
+
+    def test_e25_network(self):
+        net = Network()
+
+        net.add_layer('scalogram', [2, 256])
+
+        net.add_layer('scalogram_block_0_main_conv_1', [32, 127])
+        net.add_layer('scalogram_block_0_main_conv_2', [32, 127])
+
+        net.add_layer('scalogram_block_1_main_conv_1', [128, 63])
+        net.add_layer('scalogram_block_1_main_conv_2', [128, 34])
+
+        net.add_layer('scalogram_block_2_main_conv_1', [256, 16])
+        net.add_layer('scalogram_block_2_main_conv_2', [256, 2])
+
+        net.add_layer('scalogram_block_3_main_conv_1', [512, 1])
+        net.add_layer('scalogram_block_3_main_conv_2', [512, 1])
+
+        net.add_layer('ar_block_0', [512, 1])
+        net.add_layer('ar_block_1', [512, 1])
+        net.add_layer('ar_block_2', [256, 1])
+        net.add_layer('ar_block_3', [256, 1])
+        net.add_layer('ar_block_4', [256, 1])
+        net.add_layer('ar_block_5', [256, 1])
+
+        # Encoder
+        # BLOCK 0
+        net.add_conv1d_connections('scalogram', 'scalogram_block_0_main_conv_1',
+                                   kernel_size=3, stride=2)
+        net.add_conv1d_connections('scalogram_block_0_main_conv_1', 'scalogram_block_0_main_conv_2',
+                                   kernel_size=64, padding=(0, 63))
+        net.add_conv1d_connections('scalogram', 'scalogram_block_0_main_conv_2',
+                                   kernel_size=1, stride=2)
+
+        # BLOCK 1
+        net.add_conv1d_connections('scalogram_block_0_main_conv_2', 'scalogram_block_1_main_conv_1',
+                                   kernel_size=3, stride=2)
+        net.add_conv1d_connections('scalogram_block_1_main_conv_1', 'scalogram_block_1_main_conv_2',
+                                   kernel_size=30)
+        net.add_conv1d_connections('scalogram_block_0_main_conv_2', 'scalogram_block_1_main_conv_2',
+                                   kernel_size=1, stride=2)
+
+
+        # BLOCK 2
+        net.add_conv1d_connections('scalogram_block_1_main_conv_2', 'scalogram_block_2_main_conv_1',
+                                   kernel_size=3, stride=2)
+        net.add_conv1d_connections('scalogram_block_2_main_conv_1', 'scalogram_block_2_main_conv_2',
+                                   kernel_size=15)
+        net.add_conv1d_connections('scalogram_block_1_main_conv_2', 'scalogram_block_2_main_conv_2',
+                                   kernel_size=3, stride=1)
+
+        # BLOCK 3
+        net.add_conv1d_connections('scalogram_block_2_main_conv_2', 'scalogram_block_3_main_conv_1',
+                                   kernel_size=2)
+        net.add_conv1d_connections('scalogram_block_3_main_conv_1', 'scalogram_block_3_main_conv_2',
+                                   kernel_size=1)
+        net.add_conv1d_connections('scalogram_block_2_main_conv_2', 'scalogram_block_3_main_conv_2',
+                                   kernel_size=1)
+
+        # Autoregressive model
+        # BLOCK 0
+        net.add_conv1d_connections('scalogram_block_3_main_conv_2', 'ar_block_0',
+                                   kernel_size=1)
+
+        # BLOCK 1
+        net.add_conv1d_connections('ar_block_0', 'ar_block_1',
+                                   kernel_size=1)
+
+        # BLOCK 2
+        net.add_conv1d_connections('ar_block_1', 'ar_block_2',
+                                   kernel_size=1)
+
+        # BLOCK 3
+        net.add_conv1d_connections('ar_block_2', 'ar_block_3',
+                                   kernel_size=1)
+
+        # BLOCK 4
+        net.add_conv1d_connections('ar_block_3', 'ar_block_4',
+                                   kernel_size=1)
+
+        # BLOCK 5
+        net.add_conv1d_connections('ar_block_4', 'ar_block_5',
+                                   kernel_size=1)
+
+        # scoring
+        net.add_conv1d_connections('ar_block_5', 'scalogram_block_3_main_conv_2',
+                                   kernel_size=1)
+
+        pass
+
+
 
 
 

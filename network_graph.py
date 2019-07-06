@@ -75,6 +75,12 @@ class Network(object):
             self.colors = torch.cat([self.colors, colors], dim=0)
 
     def add_connections(self, out_indices, connections, weights):
+        if weights is None:
+            weights = torch.ones_like(connections, dtype=torch.float)
+        else:
+            if weights.shape != connections.shape:
+                raise Exception("Wrong connection weight shape")
+
         flat_connections = torch.stack([out_indices.view(-1, 1).repeat([1, connections.shape[1]]), connections], dim=2)
         flat_connections = flat_connections.view(-1, 2)
         allow = flat_connections[:, 1] >= 0
@@ -91,28 +97,61 @@ class Network(object):
         else:
             self.connection_weights = torch.cat([self.connection_weights, weights], dim=0)
 
-    def add_full_connections(self, input_layer, output_layer):
+    def add_full_connections(self, input_layer, output_layer, weights=None):
         in_indices = self.layers[input_layer].flatten()
         out_indices = self.layers[output_layer].flatten()
         connections = in_indices.repeat([len(out_indices), 1])
-        weights = torch.ones_like(connections, dtype=torch.float)
 
         self.layer_connections[input_layer].append(output_layer)
         self.add_connections(out_indices, connections, weights)
 
     def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
+        # input layer:  channel, time
+        # output layer: channel, time
+
         in_indices = self.layers[input_layer]
         out_indices = self.layers[output_layer]
         in_channels = in_indices.shape[0]
 
+        # fully connected in channel dimension
         connection_to_channels = torch.arange(in_channels).repeat(kernel_size).view(1, 1, -1)
         connection_to_channels = connection_to_channels.repeat(out_indices.shape[0], out_indices.shape[1], 1)
+        # connection_to_channels shape: out_channels, out_length, in_channels*kernel_size
 
         kernel_offset = torch.arange(kernel_size).view(-1, 1).repeat(1, in_channels).view(1, -1)
         connection_to_time = (torch.arange(out_indices.shape[1]) * stride).unsqueeze(1) + kernel_offset - padding[0]
         connection_to_time[connection_to_time < 0] = -1
         connection_to_time[connection_to_time >= in_indices.shape[1]] = -1
         connection_to_time = connection_to_time.unsqueeze(0).repeat(out_indices.shape[0], 1, 1)
+
+        connections = in_indices[connection_to_channels, connection_to_time]
+        connections[connection_to_time < 0] = -1
+        connections = connections.view(-1, in_channels*kernel_size)
+        weights = torch.ones_like(connections, dtype=torch.float)
+
+        self.layer_connections[input_layer].append(output_layer)
+        self.add_connections(out_indices, connections, weights)
+
+    def add_conv2d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
+        # input layer:  channel, height, width
+        # output layer: channel, height, width
+
+        in_indices = self.layers[input_layer]
+        out_indices = self.layers[output_layer]
+        in_channels = in_indices.shape[0]
+
+        # fully connected in channel dimension
+        connection_to_channels = torch.arange(in_channels).repeat(kernel_size[0] * kernel_size[1]).view(1, 1, 1, -1)
+        connection_to_channels = connection_to_channels.repeat(out_indices.shape[0],
+                                                               out_indices.shape[1],
+                                                               out_indices.shape[2], 1)
+        # connection_to_channels shape: out_channels, out_height, out_width, in_channels*total_kernel_size
+
+        height_kernel_offset = torch.arange(kernel_size[0]).view(-1, 1).repeat(1, in_channels).view(1, -1)
+        connection_to_height = (torch.arange(out_indices.shape[1]) * stride).unsqueeze(1) + height_kernel_offset - padding[0][0]
+        connection_to_height[connection_to_height < 0] = -1
+        connection_to_height[connection_to_height >= in_indices.shape[1]] = -1
+        connection_to_height = connection_to_height.unsqueeze(0).repeat(out_indices.shape[0], 1, 1)
 
         connections = in_indices[connection_to_channels, connection_to_time]
         connections[connection_to_time < 0] = -1
@@ -276,7 +315,8 @@ class NetworkForceLayout:
                  step_discount_factor=0.9,
                  device='cpu',
                  mac=0.7,
-                 force_limit=0.1):
+                 force_limit=0.1,
+                 distance_exponent=2.):
         self.network = network
         self.device = device
         self.mac = mac
@@ -305,6 +345,10 @@ class NetworkForceLayout:
         self.energy = float("inf")
         self.energy_progress = 0
         self.energy_progress = 0
+        self.distance_exponent = distance_exponent
+
+    def repulsion_function(self, m1, m2, difference, distance):
+        return (m1 * m2 / distance ** self.distance_exponent).unsqueeze(1) * difference
 
     def set_position(self, indices, pos, fix=False):
         i = indices.flatten()
@@ -323,7 +367,7 @@ class NetworkForceLayout:
             if self.mac > 0:
                 mass = self.weights #torch.ones_like(self.x[:, 0])
                 qt = BarnesHutTree(self.x, mass, device=self.device, max_levels=self.max_levels)
-                electrical_force = qt.traverse(self.x, mass, mac=self.mac, force_function=electrostatic_function)
+                electrical_force = qt.traverse(self.x, mass, mac=self.mac, force_function=self.repulsion_function)
             else:
                 diff = self.x.unsqueeze(0) - self.x.unsqueeze(1)
                 m = (self.weights.unsqueeze(0) * self.weights.unsqueeze(1)).unsqueeze(2)
