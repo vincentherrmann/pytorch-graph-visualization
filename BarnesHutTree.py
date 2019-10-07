@@ -77,7 +77,7 @@ class BarnesHutTree(object):
             # determine if node is end node
             point_is_continued = node_mass[point_nodes] > mass  # only points that are not the only ones in their node are passed on to the next level
             end_nodes = point_nodes[point_is_continued == 0]  # nodes with only one point are end nodes
-            is_end_node = torch.zeros(num_nodes * self.num_o, device=self.device, dtype=torch.uint8)
+            is_end_node = torch.zeros(num_nodes * self.num_o, device=self.device, dtype=torch.bool)
             is_end_node[end_nodes] = 1
 
             node_is_continued = node_mass > 0.
