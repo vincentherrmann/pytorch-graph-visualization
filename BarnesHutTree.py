@@ -122,7 +122,7 @@ class BarnesHutTree(object):
                 self.node_mass.append(mass)
                 self.center_of_mass.append(pos)
                 self.node_indexing.append(node_indexing)
-                self.is_end_node.append(torch.ones_like(mass, dtype=torch.uint8))
+                self.is_end_node.append(torch.ones_like(mass, dtype=torch.bool))
                 #print("too many levels!")
                 break
 
