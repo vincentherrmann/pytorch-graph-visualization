@@ -138,9 +138,41 @@ class TestNetworkForceLayout(TestCase):
         #line_data = layout.line_data()
 
         #layout.plot()
-        #layout.simulate(num_steps=2000, attraction=0.2, centering=0.2, normalize_attraction=True,
-        #                plot_interval=1000)
+        layout.simulate(num_steps=500, plot_interval=1000)
         #layout.plot()
+        plot = NetworkPlot()
+        ani = animate_simulation(layout, plot)
+        plt.show()
+
+    def test_2d_conv_simulation(self):
+        net = Network()
+        net.add_layer('input_layer', [1, 4, 4])
+        net.add_layer('hidden_layer_1', [1, 4, 4])
+
+        net.add_conv2d_connections('input_layer', 'hidden_layer_1', kernel_size=(3, 3), padding=(1, 1, 1, 1))
+
+        #net.layer_connections = {'input_layer': ['hidden_layer_1', 'hidden_layer_2', 'output_layer'],
+        #                         'hidden_layer_1': ['hidden_layer_2', 'output_layer'],
+        #                         'hidden_layer_2': ['output_layer']}
+
+        #net = net.collapse_layers(factor=3, dimension=0)
+        #net = net.collapse_layers(factor=2, dimension=1)
+
+        layout = NetworkForceLayout(net,
+                                    spring_optimal_distance=0.5,
+                                    attraction_normalization=0.,
+                                    repulsion=2.,
+                                    step_size=0.5,
+                                    step_discount_factor=0.9,
+                                    centering=0.,
+                                    drag=0.,
+                                    noise=0.,
+                                    mac=0.7,
+                                    num_dim=2)
+        net.set_default_colors('jet')
+
+        layout.simulate(num_steps=3000, plot_interval=1000)
+
         plot = NetworkPlot()
         ani = animate_simulation(layout, plot)
         plt.show()
