@@ -274,7 +274,7 @@ class Network(object):
         print("num units:", nu)
         print("num units in connections", torch.max(new_connections))
         # create a hash for the new connection (because the unique operation is very slow for two dimensions)
-        connection_hash = new_connections[:, 0] * nu + new_connections[:, 1]
+        connection_hash = new_connections[:, 0] * torch.LongTensor([nu]).to(new_connections.device) + new_connections[:, 1]
         unique_connections, connections_inverse = torch.unique(connection_hash, sorted=False, return_inverse=True)
         new_connections = torch.stack([(unique_connections / nu).long(), unique_connections % nu], dim=1)
         #print("unisque operation finished")

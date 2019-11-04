@@ -2,6 +2,13 @@ from network_graph import *
 from layout_calculation import LayoutCalculation
 import imageio
 import pickle
+import torch
+
+
+if torch.cuda.is_available():
+    dev = 'cuda:0'
+else:
+    dev = 'cpu'
 
 net = Network()
 net.add_layer('scalogram', [2, 292])
@@ -154,12 +161,12 @@ net.add_conv1d_connections('ar_block_8', 'scalogram_block_7_main_conv_2',
 #     net = net.collapse_layers(factor=2, dimension=0)
 
 
-writer = imageio.get_writer('immersions_scalogram_resnet_house.mp4', fps=60)
+writer = imageio.get_writer('immersions_scalogram_resnet_house_9.mp4', fps=30)
 # writer = None
 
-layout_calculation = LayoutCalculation(net=net, video_writer=writer)
+layout_calculation = LayoutCalculation(net=net, video_writer=writer, device=dev, size=(1000, 1000))
 
-with open('/Users/vincentherrmann/Documents/Projekte/Immersions/immersions/immersions/misc/immersions_scalogram_resnet_house_data_statistics.p', 'rb') as handle:
+with open('C:/Users/HEV7RNG/Downloads/immersions_scalogram_resnet_house_data_statistics.p', 'rb') as handle:
     noise_statistics = pickle.load(handle)['element_std']
 
 del noise_statistics['c_code']
@@ -168,13 +175,16 @@ del noise_statistics['prediction']
 
 weights = layout_calculation.interpolate_statistics(noise_statistics, position=0.5, window_size=None)
 
-net.weights = (weights*0.) + 1.
+net.weights = (weights*1.) + 0.
+net.to(dev)
 
-for i in range(9):
+for i in range(8):
     net = net.collapse_layers(factor=2, dimension=0)
-
-for i in range(7):
+    net.to(dev)
+for i in range(8):
     net = net.collapse_layers(factor=2, dimension=1)
+    net.to(dev)
+
 
 layout_calculation.net = net
 

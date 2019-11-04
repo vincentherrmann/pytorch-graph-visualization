@@ -22,8 +22,10 @@ def hexes2colors(h):
 
 
 class LayoutCalculation:
-    def __init__(self, net, video_writer=None, size=(800, 600)):
+    def __init__(self, net, video_writer=None, size=(800, 600), steps_per_frame=5, device='cpu'):
         self.variance_offset = 0.1
+        self.steps_per_frame = steps_per_frame
+        self.device = device
         self.net = net
         self.video_writer = video_writer
         self.viz = Visualizer(node_positions=np.random.rand(1, 0, 2).astype(np.float32),
@@ -31,11 +33,10 @@ class LayoutCalculation:
                               edge_textures=np.zeros((1, 800, 800)).astype(np.float32),
                               draw_callback=self.write_frame,
                               size=size)
-        self.viz.min_node_radius = 0.001
+        self.viz.min_node_radius = 0.0005
         self.viz.node_radius_factor = 0.001
         self.viz.animate = False
         self.viz.node_alpha_factor = 2.
-        self.viz.min_node_radius = 0.01
         self.viz.edges_colors = hexes2colors(['#000000', '#3f34a0', '#334f9a', '#337294', '#338e8c'])
         self.viz.node_colors = hexes2colors(['#005cff', '#a8ae3a',
                                         '#005cff', '#a8ae3a',
@@ -62,7 +63,7 @@ class LayoutCalculation:
         pos_min = -2.
         max_centering = 25.
         additional_centering_per_level = 2.
-        centering = 25.
+        centering = 2.
 
         while True:
             position_change = torch.mean(torch.norm(current_net.positions - last_positions, 2, dim=1))
@@ -81,17 +82,20 @@ class LayoutCalculation:
                                             spring_optimal_distance=1.,
                                             attraction_normalization=0.,
                                             repulsion=1.,
-                                            step_size=0.1,
-                                            step_discount_factor=0.99,
+                                            step_size=0.5,
+                                            step_discount_factor=0.98,
                                             centering=centering,
                                             drag=0.2,
                                             noise=0.,
                                             mac=0.5,
                                             num_dim=2,
                                             force_limit=1.,
-                                            distance_exponent=2.5)
-
-            layout.simulation_step()
+                                            distance_exponent=2.5,
+                                            device=self.device)
+            for i in range(self.steps_per_frame):
+                layout.simulation_step()
+                level_step_counter += 1
+                global_step += 1
             positions = layout.x.cpu().numpy()[np.newaxis, :].copy()
             n_pos_max = np.max(positions)
             n_pos_min = np.min(positions)
@@ -101,8 +105,8 @@ class LayoutCalculation:
             positions /= (pos_max - pos_min)
 
             edges = np.zeros((current_net.num_connections * 3, 3), dtype=np.float32)
-            edges[0::3, :2] = positions[0, current_net.connections[:, 0], :]
-            edges[1::3, :2] = positions[0, current_net.connections[:, 1], :]
+            edges[0::3, :2] = positions[0, current_net.connections[:, 0].cpu(), :]
+            edges[1::3, :2] = positions[0, current_net.connections[:, 1].cpu(), :]
             edges[2::3, :] = float('nan')
             edges[0::3, 2] = 1.
             edges[1::3, 2] = 1.
@@ -113,12 +117,11 @@ class LayoutCalculation:
             edges_lines = pow(edges_lines / edges_lines.max(), 0.25)
             # edges_lines = gaussian_filter(edges_lines, sigma=0.8)
 
-            self.viz.set_new_node_positions(positions, new_weights=current_net.weights[None, :].numpy())
+            self.viz.set_new_node_positions(positions, new_weights=current_net.weights[None, :].cpu().numpy())
             self.viz.edge_textures = edges_lines[np.newaxis, :, :]
             self.viz.update()
 
-            level_step_counter += 1
-            global_step += 1
+
             # time.sleep(0.1)
 
         if self.video_writer is not None:
