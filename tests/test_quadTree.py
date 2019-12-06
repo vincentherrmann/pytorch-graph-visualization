@@ -1,5 +1,5 @@
 from unittest import TestCase
-from BarnesHutTree import *
+from barnes_hut_tree import *
 import time
 
 

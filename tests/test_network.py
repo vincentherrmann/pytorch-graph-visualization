@@ -148,8 +148,10 @@ class TestNetworkForceLayout(TestCase):
         net = Network()
         net.add_layer('input_layer', [1, 4, 4])
         net.add_layer('hidden_layer_1', [1, 4, 4])
+        net.add_layer('output_layer', [10])
 
         net.add_conv2d_connections('input_layer', 'hidden_layer_1', kernel_size=(3, 3), padding=(1, 1, 1, 1))
+        net.add_full_connections('hidden_layer_1', 'output_layer')
 
         #net.layer_connections = {'input_layer': ['hidden_layer_1', 'hidden_layer_2', 'output_layer'],
         #                         'hidden_layer_1': ['hidden_layer_2', 'output_layer'],

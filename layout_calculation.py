@@ -2,7 +2,7 @@ from network_graph import *
 
 import numpy as np
 import qtpy
-from openGLviz.net_visualizer import Visualizer
+from open_gl_viz import Visualizer
 from vispy import gloo, app
 from threading import Thread
 import time
@@ -48,27 +48,38 @@ class LayoutCalculation:
                                    x_axis_type='linear', y_axis_type='linear')
 
         self.window = qtpy.QtWidgets.QMainWindow()
+        self.window.setFixedSize(size[0], size[1])
         self.window.setCentralWidget(self.viz.native)
 
         self.simulation_thread = Thread(target=self.run_simulation, daemon=True)
 
-        self.range_gamma = 0.1
+        self.range_gamma = 0.
+        self.max_centering = 25.
+        self.additional_centering_per_level = 2.
+        self.centering = 2.
+        self.step_size = 0.5
+        self.step_discount_factor = 0.98
+        self.distance_exponent = 2.5
+        self.min_num_steps = 200
+        self.pos_min = -2.
+        self.pos_max = 2.
+        self.layout = None
+        self.plot_connections = True
 
     def run_simulation(self):
         global_step = 0
         level_step_counter = 1e10
-        last_positions = self.net.positions
         current_net = self.net
-        pos_max = 2.
-        pos_min = -2.
-        max_centering = 25.
-        additional_centering_per_level = 2.
-        centering = 2.
+        current_net.to(self.device)
+        last_positions = self.net.positions
+        pos_max = self.pos_max
+        pos_min = self.pos_min
+        centering = self.centering
 
         while True:
             position_change = torch.mean(torch.norm(current_net.positions - last_positions, 2, dim=1))
             last_positions = current_net.positions.clone()
-            if position_change < 0.001 and level_step_counter > 200:
+            if position_change < 0.001 and level_step_counter > self.min_num_steps:
                 print("move to new level")
                 level_step_counter = 0
                 if global_step > 0:
@@ -76,21 +87,22 @@ class LayoutCalculation:
                     if current_net is None:
                         break
                     last_positions = current_net.positions.clone()
-                centering = min(max_centering, centering+additional_centering_per_level)
+                    current_net.to(self.device)
+                centering = min(self.max_centering, centering+self.additional_centering_per_level)
                 print("positions:", last_positions.shape, "centering:", centering)
                 layout = NetworkForceLayout(current_net,
                                             spring_optimal_distance=1.,
                                             attraction_normalization=0.,
                                             repulsion=1.,
-                                            step_size=0.5,
-                                            step_discount_factor=0.98,
+                                            step_size=self.step_size,
+                                            step_discount_factor=self.step_discount_factor,
                                             centering=centering,
                                             drag=0.2,
                                             noise=0.,
                                             mac=0.5,
                                             num_dim=2,
                                             force_limit=1.,
-                                            distance_exponent=2.5,
+                                            distance_exponent=self.distance_exponent,
                                             device=self.device)
             for i in range(self.steps_per_frame):
                 layout.simulation_step()
@@ -103,32 +115,32 @@ class LayoutCalculation:
             pos_min = self.range_gamma * n_pos_min + (1 - self.range_gamma) * pos_min
             positions -= pos_min
             positions /= (pos_max - pos_min)
+            positions = positions * 0.8 + 0.1
 
-            edges = np.zeros((current_net.num_connections * 3, 3), dtype=np.float32)
-            edges[0::3, :2] = positions[0, current_net.connections[:, 0].cpu(), :]
-            edges[1::3, :2] = positions[0, current_net.connections[:, 1].cpu(), :]
-            edges[2::3, :] = float('nan')
-            edges[0::3, 2] = 1.
-            edges[1::3, 2] = 1.
-            edges = pd.DataFrame(data=edges)
-            edges.columns = ['x', 'y', 'val']
-            edges_lines = self.ds_canvas.line(edges, 'x', 'y', agg=ds.sum('val')).values.astype(np.float32)
-            edges_lines[edges_lines != edges_lines] = 0.
-            edges_lines = pow(edges_lines / edges_lines.max(), 0.25)
-            # edges_lines = gaussian_filter(edges_lines, sigma=0.8)
+            if self.plot_connections:
+                edges = np.zeros((current_net.num_connections * 3, 3), dtype=np.float32)
+                edges[0::3, :2] = positions[0, current_net.connections[:, 0].cpu(), :]
+                edges[1::3, :2] = positions[0, current_net.connections[:, 1].cpu(), :]
+                edges[2::3, :] = float('nan')
+                edges[0::3, 2] = 1.
+                edges[1::3, 2] = 1.
+                edges = pd.DataFrame(data=edges)
+                edges.columns = ['x', 'y', 'val']
+                edges_lines = self.ds_canvas.line(edges, 'x', 'y', agg=ds.sum('val')).values.astype(np.float32)
+                edges_lines[edges_lines != edges_lines] = 0.
+                edges_lines = pow(edges_lines / edges_lines.max(), 0.25)
+                # edges_lines = gaussian_filter(edges_lines, sigma=0.8)
+
+                self.viz.edge_textures = edges_lines[np.newaxis, :, :]
 
             self.viz.set_new_node_positions(positions, new_weights=current_net.weights[None, :].cpu().numpy())
-            self.viz.edge_textures = edges_lines[np.newaxis, :, :]
+
             self.viz.update()
 
-
             # time.sleep(0.1)
+        self.layout = layout.x.cpu().numpy()
+        app.quit()
 
-        if self.video_writer is not None:
-            print("close video writer")
-            self.video_writer.close()
-
-        np.save('layout_positions', layout.x.cpu().numpy())
 
     def write_frame(self):
         if self.video_writer is not None:
@@ -137,9 +149,10 @@ class LayoutCalculation:
 
     def start_simulation(self):
         self.window.show()
+        self.simulation_thread = Thread(target=self.run_simulation, daemon=True)
         self.simulation_thread.start()
-
         app.run()
+        return self.layout
 
     @staticmethod
     def window_func(x):
@@ -171,16 +184,17 @@ class LayoutCalculation:
             b = torch.index_select(x, dim=dim, index=torch.LongTensor([idx2])).squeeze(dim)
             return (1 - interp) * a + interp * b
         else:
-            support = (torch.linspace(0.5, 1 / window_size + 0.5, length) - pos / window_size) % (1 / window_size)
+            support = (torch.linspace(0.5, 1 / window_size + 0.5, length+1) - pos / window_size) % (1 / window_size)
+            support = support[:length]
             w = self.window_func(support)
             w /= w.sum()
             shape = list(x.shape)
             for i in range(len(shape)):
                 if i != dim:
                     shape[i] = 1
-            x = x * w.view(shape) / torch.sum(w)
-            x = torch.sum(x, dim=dim)
-            return x
+            wx = x * w.view(shape) / torch.sum(w)
+            wx = torch.sum(wx, dim=dim)
+            return wx
 
     def interpolate_statistics(self, stats, position, window_size=0.125):
         weights = []
@@ -189,7 +203,7 @@ class LayoutCalculation:
             var_max = torch.max(variances)
             print(key)
             print("var max:", var_max)
-            variances /= var_max
+            variances = variances / var_max
             variances += self.variance_offset
             variances /= variances.mean()
             print("max var:", variances.max())

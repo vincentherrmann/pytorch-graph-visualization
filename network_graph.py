@@ -3,14 +3,17 @@ import torch
 import torch.nn.functional as F
 import matplotlib
 import threading
-from matplotlib import pyplot as plt
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    print("failed importing pyplot!")
 from matplotlib import collections as mc
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation
 import time
 import copy
 import math
-from BarnesHutTree import *
+from barnes_hut_tree import *
 
 
 class Network(object):
@@ -106,6 +109,14 @@ class Network(object):
         self.layer_connections[input_layer].append(output_layer)
         self.add_connections(out_indices, connections, weights)
 
+    def add_one_to_one_connections(self, input_layer, output_layer, weights=None):
+        in_indices = self.layers[input_layer].flatten()
+        out_indices = self.layers[output_layer].flatten()
+        connections = out_indices[:, None] #in_indices.repeat([len(out_indices), 1])
+
+        self.layer_connections[input_layer].append(output_layer)
+        self.add_connections(out_indices, connections, weights)
+
     def add_conv1d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
         # input layer:  channel, time
         # output layer: channel, time
@@ -189,35 +200,6 @@ class Network(object):
         self.add_connections(out_indices, connections, weights)
 
 
-    # def add_conv2d_connections(self, input_layer, output_layer, kernel_size, stride=1, padding=(0, 0)):
-    #     # input layer:  channel, height, width
-    #     # output layer: channel, height, width
-    #
-    #     in_indices = self.layers[input_layer]
-    #     out_indices = self.layers[output_layer]
-    #     in_channels = in_indices.shape[0]
-    #
-    #     # fully connected in channel dimension
-    #     connection_to_channels = torch.arange(in_channels).repeat(kernel_size[0] * kernel_size[1]).view(1, 1, 1, -1)
-    #     connection_to_channels = connection_to_channels.repeat(out_indices.shape[0],
-    #                                                            out_indices.shape[1],
-    #                                                            out_indices.shape[2], 1)
-    #     # connection_to_channels shape: out_channels, out_height, out_width, in_channels*total_kernel_size
-    #
-    #     height_kernel_offset = torch.arange(kernel_size[0]).view(-1, 1).repeat(1, in_channels).view(1, -1)
-    #     connection_to_height = (torch.arange(out_indices.shape[1]) * stride).unsqueeze(1) + height_kernel_offset - padding[0][0]
-    #     connection_to_height[connection_to_height < 0] = -1
-    #     connection_to_height[connection_to_height >= in_indices.shape[1]] = -1
-    #     connection_to_height = connection_to_height.unsqueeze(0).repeat(out_indices.shape[0], 1, 1)
-    #
-    #     connections = in_indices[connection_to_channels, connection_to_time]
-    #     connections[connection_to_time < 0] = -1
-    #     connections = connections.view(-1, in_channels*kernel_size)
-    #     weights = torch.ones_like(connections, dtype=torch.float)
-    #
-    #     self.layer_connections[input_layer].append(output_layer)
-    #     self.add_connections(out_indices, connections, weights)
-
     def collapse_layers(self, factor=2, dimension=0):
         collapsed_graph = Network()
         collapsed_graph.parent_graph = self
@@ -228,24 +210,28 @@ class Network(object):
             # if collapsing is not possible‚
             if dimension >= len(indices.shape) or indices.shape[dimension] < factor:
                 collapse_factor = 1
+                print("cannot collapse dimension " + str(dimension) + " in layer " + name)
+                d = 0
             else:
                 collapse_factor = factor
+                d = dimension
 
             # create reverse lookup: child node index -> parent node indices
             # reshape indices with additional collapse dimension, use zero padding if the shape does not fir
             padding = [0] * (len(indices.shape) * 2)
-            target_size = math.ceil(indices.shape[dimension] / collapse_factor) * collapse_factor
-            padding[len(padding) - 1 - dimension*2] = target_size - indices.shape[dimension]
+            target_size = math.ceil(indices.shape[d] / collapse_factor) * collapse_factor
+            padding[len(padding) - 1 - d*2] = target_size - indices.shape[d]
             padded_indices = F.pad(indices, padding, value=-1)
             view_shape = list(padded_indices.shape)
-            view_shape[dimension] = padded_indices.shape[dimension] // collapse_factor
-            view_shape.insert(dimension + 1, collapse_factor)
+            view_shape[d] = padded_indices.shape[d] // collapse_factor
+            view_shape.insert(d + 1, collapse_factor)
             collapse_lookup = padded_indices.view(view_shape)
+            print("layer " + name + " view_shape:" + str(view_shape))
 
             # move the collapse dimension to the end
             permutation = list(range(len(view_shape)))
-            permutation.pop(dimension+1)
-            permutation.append(dimension+1)
+            permutation.pop(d+1)
+            permutation.append(d+1)
             collapse_lookup = collapse_lookup.permute(permutation)
             collapsed_layer_shape = list(collapse_lookup.shape)
             collapsed_layer_shape.pop(-1)
@@ -268,15 +254,19 @@ class Network(object):
         collapsed_graph.weights *= 0
         collapsed_graph.weights.scatter_add_(0, expand_lookup, self.weights)
 
-        new_connections = expand_lookup[self.connections]
-        #print("unique operation started")
         nu = collapsed_graph.num_units
+        print("old num units", self.num_units)
+        print("old max connections index:", self.connections.max())
+        new_connections = expand_lookup[self.connections]
         print("num units:", nu)
-        print("num units in connections", torch.max(new_connections))
+        print("max connection index:", torch.max(new_connections))
+        #print("unique operation started")
+
         # create a hash for the new connection (because the unique operation is very slow for two dimensions)
         connection_hash = new_connections[:, 0] * torch.LongTensor([nu]).to(new_connections.device) + new_connections[:, 1]
         unique_connections, connections_inverse = torch.unique(connection_hash, sorted=False, return_inverse=True)
-        new_connections = torch.stack([(unique_connections / nu).long(), unique_connections % nu], dim=1)
+        new_connections = torch.stack([unique_connections / int(nu), unique_connections % nu], dim=1)
+        print("max connection index:", torch.max(new_connections))
         #print("unisque operation finished")
         collapsed_graph.connections = new_connections
         new_weights = torch.zeros(unique_connections.shape[0], device=self.positions.device)
