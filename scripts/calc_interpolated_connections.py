@@ -5,11 +5,11 @@ import numpy as np
 
 from scripts.create_networks import scalogram_resnet_network_smaller
 
-interpolated_positions = np.load('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_house_smaller/immersions_scalogram_resnet_house_smaller_layout_240_positions.npy').astype(np.float32)
+interpolated_positions = np.load('/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_240_positions.npy').astype(np.float32)
 position_min = interpolated_positions.min()
 position_max = interpolated_positions.max()
 interpolated_positions = (interpolated_positions - position_min) / (position_max - position_min)
-np.save('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_house_smaller/immersions_scalogram_resnet_house_smaller_layout_240_positions.npy', interpolated_positions)
+np.save('/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_240_positions.npy', interpolated_positions)
 
 net = scalogram_resnet_network_smaller()
 
@@ -35,4 +35,4 @@ for time_frame in range(240):
     connections.append(edges_lines)
 
 connection_array = np.stack(connections, axis=0).astype(np.float32)
-np.save('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_house_smaller/immersions_scalogram_resnet_house_smaller_connections_240.npy', connection_array)
+np.save('/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_connections_240.npy', connection_array)

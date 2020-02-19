@@ -294,6 +294,153 @@ def scalogram_resnet_network_smaller():
     return net
 
 
+def immersions_network_new():
+    net = Network()
+    net.add_layer('scalogram', [2, 216])
+
+    net.add_layer('scalogram_block_0_main_conv_1', [8, 107])
+    net.add_layer('scalogram_block_0_main_conv_2', [8, 83])
+
+    net.add_layer('scalogram_block_1_main_conv_1', [16, 81])
+    net.add_layer('scalogram_block_1_main_conv_2', [16, 79])
+
+    net.add_layer('scalogram_block_2_main_conv_1', [32, 77])
+    net.add_layer('scalogram_block_2_main_conv_2', [32, 63])
+
+    net.add_layer('scalogram_block_3_main_conv_1', [64, 61])
+    net.add_layer('scalogram_block_3_main_conv_2', [64, 59])
+
+    net.add_layer('scalogram_block_4_main_conv_1', [128, 29])
+    net.add_layer('scalogram_block_4_main_conv_2', [128, 15])
+
+    net.add_layer('scalogram_block_5_main_conv_1', [256, 13])
+    net.add_layer('scalogram_block_5_main_conv_2', [256, 11])
+
+    net.add_layer('scalogram_block_6_main_conv_1', [512, 9])
+    net.add_layer('scalogram_block_6_main_conv_2', [512, 5])
+
+    net.add_layer('scalogram_block_7_main_conv_1', [512, 3])
+    net.add_layer('scalogram_block_7_main_conv_2', [512, 1])
+
+    net.add_layer('ar_block_0', [512, 1])
+    net.add_layer('ar_block_1', [512, 1])
+    net.add_layer('ar_block_2', [512, 1])
+    net.add_layer('ar_block_3', [512, 1])
+    net.add_layer('ar_block_4', [256, 1])
+    net.add_layer('ar_block_5', [256, 1])
+    net.add_layer('ar_block_6', [256, 1])
+    net.add_layer('ar_block_7', [256, 1])
+    net.add_layer('ar_block_8', [256, 1])
+
+    # Encoder
+    # BLOCK 0
+    net.add_conv1d_connections('scalogram', 'scalogram_block_0_main_conv_1',
+                               kernel_size=3, stride=2)
+    net.add_conv1d_connections('scalogram_block_0_main_conv_1', 'scalogram_block_0_main_conv_2',
+                               kernel_size=25)
+    net.add_conv1d_connections('scalogram', 'scalogram_block_0_main_conv_2',
+                               kernel_size=1, stride=2)
+
+    # BLOCK 1
+    net.add_conv1d_connections('scalogram_block_0_main_conv_2', 'scalogram_block_1_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_1_main_conv_1', 'scalogram_block_1_main_conv_2',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_0_main_conv_2', 'scalogram_block_1_main_conv_2',
+                               kernel_size=1)
+
+    # BLOCK 2
+    net.add_conv1d_connections('scalogram_block_1_main_conv_2', 'scalogram_block_2_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_2_main_conv_1', 'scalogram_block_2_main_conv_2',
+                               kernel_size=15)
+    net.add_conv1d_connections('scalogram_block_1_main_conv_2', 'scalogram_block_2_main_conv_2',
+                               kernel_size=1, stride=2)
+
+    # BLOCK 3
+    net.add_conv1d_connections('scalogram_block_2_main_conv_2', 'scalogram_block_3_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_3_main_conv_1', 'scalogram_block_3_main_conv_2',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_2_main_conv_2', 'scalogram_block_3_main_conv_2',
+                               kernel_size=1)
+
+    # BLOCK 4
+    net.add_conv1d_connections('scalogram_block_3_main_conv_2', 'scalogram_block_4_main_conv_1',
+                               kernel_size=3, stride=2)
+    net.add_conv1d_connections('scalogram_block_4_main_conv_1', 'scalogram_block_4_main_conv_2',
+                               kernel_size=15)
+    net.add_conv1d_connections('scalogram_block_3_main_conv_2', 'scalogram_block_4_main_conv_2',
+                               kernel_size=1, stride=2)
+
+    # BLOCK 5
+    net.add_conv1d_connections('scalogram_block_4_main_conv_2', 'scalogram_block_5_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_5_main_conv_1', 'scalogram_block_5_main_conv_2',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_4_main_conv_2', 'scalogram_block_5_main_conv_2',
+                               kernel_size=1)
+
+    # BLOCK 6
+    net.add_conv1d_connections('scalogram_block_5_main_conv_2', 'scalogram_block_6_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_6_main_conv_1', 'scalogram_block_6_main_conv_2',
+                               kernel_size=5)
+    net.add_conv1d_connections('scalogram_block_5_main_conv_2', 'scalogram_block_6_main_conv_2',
+                               kernel_size=1, stride=2)
+
+    # BLOCK 7
+    net.add_conv1d_connections('scalogram_block_6_main_conv_2', 'scalogram_block_7_main_conv_1',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_7_main_conv_1', 'scalogram_block_7_main_conv_2',
+                               kernel_size=3)
+    net.add_conv1d_connections('scalogram_block_6_main_conv_2', 'scalogram_block_7_main_conv_2',
+                               kernel_size=1)
+
+    # Autoregressive model
+    # BLOCK 0
+    net.add_conv1d_connections('scalogram_block_7_main_conv_2', 'ar_block_0',
+                               kernel_size=1)
+
+    # BLOCK 1
+    net.add_conv1d_connections('ar_block_0', 'ar_block_1',
+                               kernel_size=1)
+
+    # BLOCK 2
+    net.add_conv1d_connections('ar_block_1', 'ar_block_2',
+                               kernel_size=1)
+
+    # BLOCK 3
+    net.add_conv1d_connections('ar_block_2', 'ar_block_3',
+                               kernel_size=1)
+
+    # BLOCK 4
+    net.add_conv1d_connections('ar_block_3', 'ar_block_4',
+                               kernel_size=1)
+
+    # BLOCK 5
+    net.add_conv1d_connections('ar_block_4', 'ar_block_5',
+                               kernel_size=1)
+
+    # BLOCK 3
+    net.add_conv1d_connections('ar_block_5', 'ar_block_6',
+                               kernel_size=1)
+
+    # BLOCK 4
+    net.add_conv1d_connections('ar_block_6', 'ar_block_7',
+                               kernel_size=1)
+
+    # BLOCK 5
+    net.add_conv1d_connections('ar_block_7', 'ar_block_8',
+                               kernel_size=1)
+
+    # scoring
+    net.add_conv1d_connections('ar_block_8', 'scalogram_block_7_main_conv_2',
+                               kernel_size=1)
+
+    return net
+
+
 def vgg16_network():
     net = Network()
     net.add_layer('input', [1, 224, 224])

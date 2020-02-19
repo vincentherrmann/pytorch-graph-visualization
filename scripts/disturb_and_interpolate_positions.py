@@ -9,7 +9,7 @@ from threading import Thread
 from vispy import app
 
 positions = np.load(
-    'C:/Users/HEV7RNG/Documents/Immersions/pytorch-graph-visualization/scripts/immersions_scalogram_resnet_maestro_smaller_layout_timestep_positions.npy')
+    '/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_timestep_positions.npy')
 num_steps = positions.shape[0]
 
 # random motion
@@ -53,7 +53,7 @@ orig_linspace = np.linspace(0, perturbed_positions.shape[0] / num_steps, perturb
 interp_p = interp1d(orig_linspace, perturbed_positions, kind='cubic', axis=0)
 interpolated_positions = interp_p(interp_linspace)
 
-np.save('C:/Users/HEV7RNG/Documents/Immersions/pytorch-graph-visualization/scripts/immersions_scalogram_resnet_maestro_smaller_layout_240_positions.npy', interpolated_positions)
+np.save('/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_240_positions.npy', interpolated_positions)
 
 # normalize
 position_min = interpolated_positions.min()
