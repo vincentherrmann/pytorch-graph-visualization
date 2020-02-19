@@ -1,7 +1,6 @@
 from unittest import TestCase
-from layout_calculation import LayoutCalculation
+from graph_visualization.layout_calculation import LayoutCalculation
 import torch
-from matplotlib import pyplot as plt
 
 
 class TestLayoutCalculation(TestCase):

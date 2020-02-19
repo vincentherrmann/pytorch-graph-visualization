@@ -4,16 +4,14 @@ import time
 import torch
 import pandas as pd
 import datashader as ds
-from collections import OrderedDict
 
-from scipy.interpolate import interp1d, griddata
-from layout_calculation import hexes2colors
+from graph_visualization.layout_calculation import hexes2colors
 from openGLviz.net_visualizer import Visualizer
 from threading import Thread
 from vispy import app, gloo
 import imageio
-from immersions.input_optimization.activation_utilities import ModelActivations, activation_selection_dict
-from scripts.create_networks import scalogram_resnet_network_smaller
+from immersions.input_optimization.activation_utilities import ModelActivations
+from graph_visualization.scripts.create_networks import scalogram_resnet_network_smaller
 
 name = 'immersions_scalogram_resnet_house_smaller'
 

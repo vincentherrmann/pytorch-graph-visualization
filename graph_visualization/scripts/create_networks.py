@@ -1,4 +1,4 @@
-from network_graph import Network
+from graph_visualization.network_graph import Network
 
 def scalogram_resnet_network():
     net = Network()

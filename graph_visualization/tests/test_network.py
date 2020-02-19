@@ -1,5 +1,5 @@
 from unittest import TestCase
-from network_graph import *
+from graph_visualization.network_graph import *
 
 
 class TestNetwork(TestCase):

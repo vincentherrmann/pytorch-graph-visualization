@@ -1,19 +1,16 @@
 import numpy as np
-import torch
 import torch.nn.functional as F
 import matplotlib
-import threading
+
 try:
     from matplotlib import pyplot as plt
 except ImportError:
     print("failed importing pyplot!")
 from matplotlib import collections as mc
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation
 import time
-import copy
 import math
-from barnes_hut_tree import *
+from graph_visualization.barnes_hut_tree import *
 
 
 class Network(object):

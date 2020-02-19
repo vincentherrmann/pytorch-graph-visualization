@@ -1,16 +1,13 @@
-from network_graph import *
+from graph_visualization.network_graph import *
 
 import numpy as np
 import qtpy
-from open_gl_viz import Visualizer
+from graph_visualization.open_gl_viz import Visualizer
 from vispy import gloo, app
 from threading import Thread
-import time
-import random
 import imageio
 import datashader as ds
 import pandas as pd
-from scipy.ndimage.filters import gaussian_filter
 from matplotlib.colors import hex2color
 
 

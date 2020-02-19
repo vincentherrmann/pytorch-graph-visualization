@@ -1,25 +1,23 @@
-from network_graph import *
-from scripts.create_networks import immersions_network_new
-from layout_calculation import LayoutCalculation
+from graph_visualization.network_graph import *
+from graph_visualization.scripts.create_networks import scalogram_resnet_network_smaller
+from graph_visualization.layout_calculation import LayoutCalculation
 import imageio
 import pickle
 import torch
 
-model_path = "/Volumes/Elements/Projekte/Immersions/models/immersions_maestro_new"
 
 if torch.cuda.is_available():
     dev = 'cuda:0'
 else:
     dev = 'cpu'
 
-net = immersions_network_new()
+net = scalogram_resnet_network_smaller()
 
 # for i in range(4):
 #     net = net.collapse_layers(factor=2, dimension=0)
 
-
-writer = imageio.get_writer(model_path + '/layout_video.mp4', fps=30)
-# writer = None
+writer = imageio.get_writer('immersions_scalogram_resnet_house_smaller.mp4', fps=30)
+#writer = None
 
 layout_calculation = LayoutCalculation(net=net, video_writer=writer, device=dev, size=(1200, 1200))
 layout_calculation.range_gamma = 0.5
@@ -29,7 +27,7 @@ layout_calculation.centering = 0.
 layout_calculation.viz.scale_factor = 100.
 layout_calculation.viz.focus = np.zeros(layout_calculation.viz.node_positions.shape[1]) > 0.
 
-with open(model_path + '/data_statistics.p', 'rb') as handle:
+with open('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_house_smaller/immersions_scalogram_resnet_house_smaller_data_statistics.p', 'rb') as handle:
     noise_statistics = pickle.load(handle)['element_std']
 
 del noise_statistics['c_code']
@@ -52,5 +50,5 @@ for i in range(8):
 layout_calculation.net = net
 
 layout_positions = layout_calculation.start_simulation()
-np.save(model_path + '/layout_positions', layout_positions)
+np.save('immersions_scalogram_resnet_house_smaller_layout_positions', layout_positions)
 writer.close()

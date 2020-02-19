@@ -1,5 +1,5 @@
 from unittest import TestCase
-from barnes_hut_tree import *
+from graph_visualization.barnes_hut_tree import *
 import time
 
 

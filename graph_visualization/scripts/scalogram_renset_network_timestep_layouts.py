@@ -1,42 +1,38 @@
-from network_graph import *
-from scripts.create_networks import scalogram_resnet_network_smaller
-from layout_calculation import LayoutCalculation
+from graph_visualization.network_graph import *
+from graph_visualization.scripts.create_networks import scalogram_resnet_network
+from graph_visualization.layout_calculation import LayoutCalculation
 import imageio
 import pickle
 import torch
-from matplotlib import pyplot as plt
-
 
 if torch.cuda.is_available():
     dev = 'cuda:0'
 else:
     dev = 'cpu'
 
-net = scalogram_resnet_network_smaller()
+net = scalogram_resnet_network()
 net.to(dev)
 
 time_positions = [0., 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]
 
-with open('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_data_statistics.p', 'rb') as handle:
+with open('C:/Users/HEV7RNG/Downloads/immersions_scalogram_resnet_house_data_statistics.p', 'rb') as handle:
     noise_statistics = pickle.load(handle)['element_std']
 
-reference_positions = np.load('C:/Users/HEV7RNG/Documents/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_positions.npy')
+reference_positions = np.load('C:/Users/HEV7RNG/Documents/Immersions/models/house_v1/layout_positions_house.npy')
 
 del noise_statistics['c_code']
 del noise_statistics['z_code']
 del noise_statistics['prediction']
 
-writer = imageio.get_writer('immersions_scalogram_resnet_maestro_smaller_timesteps.mp4', fps=30)
+writer = imageio.get_writer('immersions_scalogram_resnet_house_timesteps_4.mp4', fps=30)
 # writer = None
 
-layout_calculation = LayoutCalculation(net=net, video_writer=writer, device=dev, size=(1200, 1200))
-layout_calculation.centering = 20.
-layout_calculation.max_centering = 20.
+layout_calculation = LayoutCalculation(net=net, video_writer=writer, device=dev, size=(1000, 1000))
+layout_calculation.centering = 25.
 layout_calculation.step_size = 0.1
 layout_calculation.plot_connections = False
-layout_calculation.range_gamma = 0.5
-layout_calculation.viz.scale_factor = 100.
-layout_calculation.viz.focus = np.zeros(layout_calculation.viz.node_positions.shape[1]) > 0.
+#layout_calculation.step_size = 0.
+#layout_calculation.min_num_steps = 1
 
 time_positions_weights = []
 for i, pos in enumerate(time_positions):
@@ -62,5 +58,5 @@ for i, pos in enumerate(time_positions):
     layout_positions = layout_calculation.start_simulation()
     timestep_layouts.append(layout_positions)
 
-np.save('immersions_scalogram_resnet_maestro_smaller_layout_timestep_positions', np.stack(timestep_layouts, axis=0))
+np.save('layout_timestep_positions_house_shorter_window', np.stack(timestep_layouts, axis=0))
 writer.close()

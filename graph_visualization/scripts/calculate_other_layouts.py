@@ -1,8 +1,7 @@
-from network_graph import *
-from scripts.create_networks import scalogram_resnet_network, vgg16_network, vgg16_1d_network, resnet18_1d_network
-from layout_calculation import LayoutCalculation
+from graph_visualization.network_graph import *
+from graph_visualization.scripts.create_networks import resnet18_1d_network
+from graph_visualization.layout_calculation import LayoutCalculation
 import imageio
-import pickle
 import torch
 
 

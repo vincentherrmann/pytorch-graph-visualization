@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 import numpy as np
 
-from scripts.create_networks import scalogram_resnet_network_smaller
+from graph_visualization.scripts.create_networks import scalogram_resnet_network_smaller
 
 interpolated_positions = np.load('/Users/vincentherrmann/Documents/Projekte/Immersions/models/immersions_scalogram_resnet_maestro_smaller/immersions_scalogram_resnet_maestro_smaller_layout_240_positions.npy').astype(np.float32)
 position_min = interpolated_positions.min()

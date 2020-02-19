@@ -3,7 +3,7 @@ import qtpy
 import time
 
 from scipy.interpolate import interp1d, griddata
-from layout_calculation import hexes2colors
+from graph_visualization.layout_calculation import hexes2colors
 from openGLviz.net_visualizer import Visualizer
 from threading import Thread
 from vispy import app
